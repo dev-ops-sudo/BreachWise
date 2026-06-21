@@ -151,14 +151,13 @@ function TrainingContent() {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-4">
-            <button
-              type="button"
-              className="btn-primary flex-1 sm:flex-none"
-              onClick={() => alert("War room simulation would launch here!")}
+            <Link
+              href={`/training/simulation?attack=${selectedAttacks[0]?.id}`}
+              className="btn-primary flex-1 sm:flex-none inline-flex items-center justify-center gap-2"
             >
               <Play className="h-4 w-4" fill="currentColor" />
               {isResume ? "Resume Training" : "Start Training"}
-            </button>
+            </Link>
             {!isResume && (
               <Link href="/attacks" className="btn-secondary">
                 Change Selection
