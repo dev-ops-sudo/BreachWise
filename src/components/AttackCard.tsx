@@ -11,10 +11,11 @@ import {
 interface AttackCardProps {
   attack: Attack;
   selected: boolean;
+  completedScore?: number;
   onToggle: (id: string) => void;
 }
 
-export default function AttackCard({ attack, selected, onToggle }: AttackCardProps) {
+export default function AttackCard({ attack, selected, completedScore, onToggle }: AttackCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -52,6 +53,11 @@ export default function AttackCard({ attack, selected, onToggle }: AttackCardPro
                   <Clock className="h-3 w-3" />
                   {attack.duration}
                 </span>
+                {completedScore !== undefined && (
+                  <span className="rounded-full bg-cyan-500/10 px-2.5 py-0.5 text-xs font-semibold text-cyan-300">
+                    Last score: {completedScore}/100
+                  </span>
+                )}
               </div>
             </div>
           </div>

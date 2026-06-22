@@ -3,25 +3,40 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "cross-env BACKEND_PORT=4002 next dev",
+    "dev:backend": "cross-env PORT=4002 BACKEND_PORT=4002 node index.js",
+    "dev:both": "cross-env BACKEND_PORT=4002 concurrently \"npm run dev\" \"npm run dev:backend\"",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "serve": "node index.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@google/generative-ai": "^0.24.1",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.511.0",
     "next": "^15.3.3",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "lucide-react": "^0.511.0"
+    "node-fetch": "^3.3.2",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
-    "typescript": "^5.8.3",
-    "@tailwindcss/postcss": "^4.1.8",
-    "tailwindcss": "^4.1.8",
+    "concurrently": "^10.0.3",
+    "cross-env": "^7.0.3",
     "eslint": "^9.27.0",
-    "eslint-config-next": "^15.3.3"
+    "eslint-config-next": "^15.3.3",
+    "tailwindcss": "^4.1.8",
+    "typescript": "^5.8.3"
   }
 }

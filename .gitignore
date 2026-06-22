@@ -28,7 +28,13 @@ yarn-debug.log*
 yarn-error.log*
 
 # env files
+.env
 .env*.local
+
+# editor / agent tooling
+.agents/
+.cursor/
+.vscode/
 
 # typescript
 next-env.d.ts

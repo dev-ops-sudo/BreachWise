@@ -22,23 +22,102 @@ body {
   font-family: var(--font-sans);
   color: #0f172a;
   background-color: #f8fafc;
+  overflow-x: hidden;
 }
 
 .textured-bg {
-  background-color: #f8fafc;
+  background-color: transparent;
+  position: relative;
+}
+
+/* Animated mesh orbs — Antigravity-style ambient glow */
+.mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  will-change: transform;
+}
+
+.mesh-orb-1 {
+  width: 55vw;
+  height: 55vw;
+  max-width: 600px;
+  max-height: 600px;
+  top: -15%;
+  left: -10%;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.35) 0%, transparent 70%);
+  animation: orb-drift-1 18s ease-in-out infinite;
+}
+
+.mesh-orb-2 {
+  width: 45vw;
+  height: 45vw;
+  max-width: 500px;
+  max-height: 500px;
+  bottom: -10%;
+  right: -5%;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.3) 0%, transparent 70%);
+  animation: orb-drift-2 22s ease-in-out infinite;
+}
+
+.mesh-orb-3 {
+  width: 35vw;
+  height: 35vw;
+  max-width: 400px;
+  max-height: 400px;
+  top: 40%;
+  left: 50%;
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.25) 0%, transparent 70%);
+  animation: orb-drift-3 15s ease-in-out infinite;
+}
+
+.mesh-grid {
+  position: absolute;
+  inset: 0;
   background-image:
-    radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(37, 99, 235, 0.06) 0%, transparent 50%),
-    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232563eb' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    linear-gradient(rgba(37, 99, 235, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 100%);
+  animation: grid-pulse 8s ease-in-out infinite;
+}
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(8%, 12%) scale(1.08); }
+  66% { transform: translate(-5%, 5%) scale(0.95); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10%, -8%) scale(1.1); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(-50%, 0) scale(1); }
+  50% { transform: translate(-45%, -6%) scale(1.05); }
+}
+
+@keyframes grid-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.7);
   box-shadow:
     0 1px 3px rgba(15, 23, 42, 0.04),
-    0 8px 24px rgba(37, 99, 235, 0.06);
+    0 8px 32px rgba(37, 99, 235, 0.08);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+}
+
+.glass-card:hover {
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.06),
+    0 16px 40px rgba(37, 99, 235, 0.12);
 }
 
 .btn-primary {
@@ -58,25 +137,137 @@ body {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(2deg); }
+}
+
+@keyframes float-alt {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(-3deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes hero-glow {
+  0%, 100% { box-shadow: 0 0 40px rgba(37, 99, 235, 0.15); }
+  50% { box-shadow: 0 0 60px rgba(37, 99, 235, 0.25); }
 }
 
 @keyframes pulse-soft {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .animate-float {
-  animation: float 4s ease-in-out infinite;
+  animation: float 5s ease-in-out infinite;
 }
 
 .animate-float-delay {
-  animation: float 4s ease-in-out 1s infinite;
+  animation: float-alt 5s ease-in-out 1.2s infinite;
+}
+
+.animate-float-slow {
+  animation: float 7s ease-in-out 0.5s infinite;
 }
 
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-hero-glow {
+  animation: hero-glow 4s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    #1d4ed8 0%,
+    #3b82f6 25%,
+    #93c5fd 50%,
+    #3b82f6 75%,
+    #1d4ed8 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+
+/* Scroll reveal */
+.reveal {
+  opacity: 1;
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal-up { transform: translateY(20px); }
+.reveal-down { transform: translateY(-20px); }
+.reveal-left { transform: translateX(-20px); }
+.reveal-right { transform: translateX(20px); }
+.reveal-fade { transform: none; }
+
+.reveal-visible {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mesh-orb,
+  .mesh-grid,
+  .animate-float,
+  .animate-float-delay,
+  .animate-float-slow,
+  .animate-hero-glow,
+  .animate-fade-in-up,
+  .animate-scale-in,
+  .shimmer-text,
+  .reveal {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 .gradient-text {

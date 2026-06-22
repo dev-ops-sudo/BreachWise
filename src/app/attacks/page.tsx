@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -8,17 +8,17 @@ import {
   Filter,
   Layers,
   Play,
-  RotateCcw,
   Search,
   Square,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AttackCard from "@/components/AttackCard";
+import ResumeBanner from "@/components/ResumeBanner";
+import { createClient } from "@/lib/supabase/client";
 import {
   attacks,
   AttackCategory,
-  resumeSession,
 } from "@/lib/attacks";
 
 const categories: (AttackCategory | "All")[] = [
@@ -35,6 +35,7 @@ export default function AttacksPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<AttackCategory | "All">("All");
+  const [completedScores, setCompletedScores] = useState<Record<string, number>>({});
 
   const filtered = useMemo(() => {
     return attacks.filter((a) => {
@@ -71,6 +72,49 @@ export default function AttacksPage() {
         ? `/training?scenarios=${Array.from(selected).join(",")}`
         : "#";
 
+  useEffect(() => {
+    const fetchCompletedScores = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !user?.id) {
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("scenario_results")
+          .select("scenario_id, overall_score, completed_at")
+          .eq("user_id", user.id)
+          .order("completed_at", { ascending: false });
+
+        if (error) {
+          console.error("Failed to load completed scenario results:", error);
+          return;
+        }
+
+        if (!Array.isArray(data)) return;
+
+        const latestScores = data.reduce<Record<string, number>>((acc, row) => {
+          if (!row?.scenario_id || typeof row.overall_score !== "number") return acc;
+          if (!acc[row.scenario_id]) {
+            acc[row.scenario_id] = row.overall_score;
+          }
+          return acc;
+        }, {});
+
+        setCompletedScores(latestScores);
+      } catch (err) {
+        console.error("Error fetching completed scenario results:", err);
+      }
+    };
+
+    fetchCompletedScores();
+  }, []);
+
   return (
     <>
       <Navbar />
@@ -94,41 +138,7 @@ export default function AttacksPage() {
           </div>
         </div>
 
-        {/* Resume banner */}
-        <div className="mb-8 glass-card rounded-2xl border-l-4 border-l-brand-500 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-100">
-                <RotateCcw className="h-5 w-5 text-brand-600" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
-                  Resume training
-                </p>
-                <p className="font-semibold text-slate-900">
-                  {resumeSession.attackTitle} — {resumeSession.module}
-                </p>
-                <p className="text-sm text-slate-500">
-                  {resumeSession.progress}% complete · Last played{" "}
-                  {resumeSession.lastPlayed}
-                </p>
-              </div>
-            </div>
-            <Link
-              href={`/training?resume=${resumeSession.attackId}`}
-              className="btn-primary !px-5 !py-2.5 text-sm"
-            >
-              <Play className="h-4 w-4" fill="currentColor" />
-              Resume Here
-            </Link>
-          </div>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600"
-              style={{ width: `${resumeSession.progress}%` }}
-            />
-          </div>
-        </div>
+        <ResumeBanner compact />
 
         {/* Filters & search */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -205,6 +215,7 @@ export default function AttacksPage() {
               attack={attack}
               selected={selected.has(attack.id)}
               onToggle={toggleAttack}
+              completedScore={completedScores[attack.id]}
             />
           ))}
         </div>
