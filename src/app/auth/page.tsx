@@ -7,6 +7,7 @@ import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { GoogleIcon, ShieldSticker, LockSticker } from "@/components/Stickers";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/site-url";
 
 function AuthForm() {
   const router = useRouter();
@@ -47,11 +48,10 @@ function AuthForm() {
     setMessage(null);
 
     const supabase = createClient();
-    const callbackUrl = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: callbackUrl,
+        redirectTo: getAuthCallbackUrl(nextPath),
         queryParams: {
           access_type: "offline",
           prompt: "consent",
@@ -83,7 +83,7 @@ function AuthForm() {
         password,
         options: {
           data: { full_name: name },
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          emailRedirectTo: getAuthCallbackUrl(nextPath),
         },
       });
 
