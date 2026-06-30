@@ -10,6 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import FloatingCyberBot from "@/components/FloatingCyberBot";
 import Footer from "@/components/Footer";
 import ResumeBanner from "@/components/ResumeBanner";
 import ScrollReveal from "@/components/ScrollReveal";
@@ -133,6 +134,21 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Live ticker */}
+        <section className="overflow-hidden border-b border-slate-200/40 bg-slate-950 py-3">
+          <div className="ticker-track flex gap-12 whitespace-nowrap text-xs font-mono uppercase tracking-[0.2em] text-cyan-400/90">
+            {[...Array(2)].map((_, i) => (
+              <span key={i} className="flex shrink-0 gap-12">
+                <span>◆ Ransomware drill live</span>
+                <span>◆ AI mentor online</span>
+                <span>◆ NIST scoring active</span>
+                <span>◆ 847 analysts training</span>
+                <span>◆ Zero-day scenario unlocked</span>
+              </span>
+            ))}
           </div>
         </section>
 
@@ -264,6 +280,7 @@ export default function HomePage() {
         </section>
       </main>
       <Footer />
+      <FloatingCyberBot />
     </>
   );
 }

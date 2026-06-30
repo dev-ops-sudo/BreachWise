@@ -262,7 +262,12 @@ body {
   .animate-fade-in-up,
   .animate-scale-in,
   .shimmer-text,
-  .reveal {
+  .reveal,
+  .ticker-track,
+  .animate-message-in,
+  .typing-dot,
+  .mentor-pulse,
+  .animate-shimmer-slide {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
@@ -272,4 +277,69 @@ body {
 
 .gradient-text {
   @apply bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent;
+}
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-track {
+  animation: ticker 28s linear infinite;
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-in {
+  animation: message-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.typing-dot {
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes mentor-pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(34, 211, 238, 0); }
+}
+
+.mentor-pulse {
+  animation: mentor-pulse-ring 1.2s ease-out 2;
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer-slide {
+  animation: shimmer-slide 3s ease-in-out infinite;
+}
+
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 211, 238, 0.3) transparent;
+}
+
+.chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(34, 211, 238, 0.3);
+  border-radius: 999px;
 }

@@ -1,5 +1,15 @@
 // AI War Room — Groq calls kept short; fallbacks when API fails or quota is tight.
 
+import {
+  buildCheckAnswerPrompt,
+  buildMentorUserPrompt,
+  buildSolutionUserPrompt,
+  CHECK_ANSWER_SYSTEM_PROMPT,
+  MENTOR_SYSTEM_PROMPT,
+  SOLUTION_SYSTEM_PROMPT,
+} from "@/lib/ai-prompts";
+import type { WarRoomEvaluation } from "@/lib/war-room-types";
+
 interface QuestionGenerationParams {
   scenarioName: string;
   scenarioDescription: string;
@@ -29,20 +39,16 @@ interface GeneratedQuestion {
   id?: string;
 }
 
-interface EvaluationResult {
-  score: number;
-  accuracy_percentage: number;
-  overall_rank: string;
-  strengths: string[];
-  weaknesses: string[];
-  recommendations: string;
-  ranking_analysis?: string;
-  answer_feedback: Array<{
-    question: string;
-    is_correct: boolean;
-    confidence_score: number;
-    feedback: string;
-  }>;
+interface EvaluationResult extends WarRoomEvaluation {}
+
+function normalizeText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function answersMatch(userAnswer: string, correctAnswer: string): boolean {
+  const user = normalizeText(userAnswer);
+  const correct = normalizeText(correctAnswer);
+  return user === correct || user.includes(correct) || correct.includes(user);
 }
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -119,11 +125,86 @@ Format: {"questions":[{"question":"...","options":[{"id":"a","text":"..."},{"id"
 function buildEvaluationPrompt(params: AnswerEvaluationParams) {
   const rows = params.questions.map((q, i) => {
     const a = params.userAnswers.find((u) => u.question_text === q.question_text);
-    return `${i + 1}. Q:${truncate(q.question_text, 80)} Correct:${truncate(q.correct_answer, 40)} User:${truncate(a?.user_answer ?? "", 40)}`;
+    return `${i + 1}. Q:${truncate(q.question_text, 100)} | Correct:${truncate(q.correct_answer, 60)} | User:${truncate(a?.user_answer ?? "none", 60)} | Mode:${(a as any)?.answer_mode ?? "mcq"}`;
   });
 
-  return `Score these IR answers. JSON only: {"score":0-100,"accuracy_percentage":0-100,"overall_rank":"Beginner|Intermediate|Expert","strengths":["..."],"weaknesses":["..."],"recommendations":"one sentence","answer_feedback":[{"question":"...","is_correct":true,"confidence_score":0.8,"feedback":"short"}]}
+  return `You are grading a cybersecurity incident response simulation.
+For EACH question provide detailed feedback explaining why the user's answer was correct or incorrect and what they should do in a real incident.
+
+JSON only:
+{"score":0-100,"accuracy_percentage":0-100,"overall_rank":"Beginner|Intermediate|Expert","strengths":["..."],"weaknesses":["..."],"recommendations":"one paragraph","ranking_analysis":"short summary","answer_feedback":[{"question":"full question text","user_answer":"what they picked/wrote","correct_answer":"expected answer","is_correct":true,"confidence_score":0.9,"feedback":"2-4 sentences of detailed reasoning"}]}
+
+Questions:
 ${rows.join("\n")}`;
+}
+
+export async function checkSingleAnswer(
+  question: string,
+  userAnswer: string,
+  correctAnswer: string,
+  mode: "mcq" | "text",
+  useGroq = true
+): Promise<{
+  is_correct: boolean;
+  confidence_score: number;
+  feedback: string;
+}> {
+  const exactMatch = answersMatch(userAnswer, correctAnswer);
+
+  if (mode === "mcq" && exactMatch) {
+    return {
+      is_correct: true,
+      confidence_score: 0.95,
+      feedback:
+        "Correct. Your selected option aligns with best-practice incident response for this scenario.",
+    };
+  }
+
+  if (mode === "mcq" && !useGroq) {
+    return {
+      is_correct: false,
+      confidence_score: 0.4,
+      feedback: getLocalSolution(question, userAnswer, correctAnswer),
+    };
+  }
+
+  if (useGroq && hasGroqKey()) {
+    const rawText = await fetchGroqCompletion(
+      [
+        { role: "system", content: CHECK_ANSWER_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: buildCheckAnswerPrompt(question, userAnswer, correctAnswer, mode),
+        },
+      ],
+      { maxCompletionTokens: 200, json: true }
+    );
+
+    const parsed = rawText ? tryParseJson(rawText) : null;
+    if (parsed && typeof parsed.is_correct === "boolean") {
+      return {
+        is_correct: parsed.is_correct,
+        confidence_score: Number(parsed.confidence_score) || 0.5,
+        feedback:
+          parsed.feedback ||
+          getLocalSolution(question, userAnswer, correctAnswer),
+      };
+    }
+  }
+
+  if (mode === "text" && exactMatch) {
+    return {
+      is_correct: true,
+      confidence_score: 0.85,
+      feedback: "Your written answer captures the correct IR approach.",
+    };
+  }
+
+  return {
+    is_correct: exactMatch,
+    confidence_score: exactMatch ? 0.8 : 0.35,
+    feedback: getLocalSolution(question, userAnswer, correctAnswer),
+  };
 }
 
 export function getLocalGuidance(question: string, context?: string): string {
@@ -203,18 +284,24 @@ export async function generateWarRoomQuestions(
 
 function scoreLocally(params: AnswerEvaluationParams): EvaluationResult {
   let correct = 0;
+  let totalTime = 0;
   const feedback = params.questions.map((q) => {
     const a = params.userAnswers.find((u) => u.question_text === q.question_text);
-    const userAnswer = (a?.user_answer ?? "").toLowerCase();
-    const correctAnswer = q.correct_answer.toLowerCase();
-    const isCorrect =
-      userAnswer.includes(correctAnswer) || correctAnswer.includes(userAnswer);
+    const userAnswer = a?.user_answer ?? "";
+    const isCorrect = answersMatch(userAnswer, q.correct_answer);
     if (isCorrect) correct += 1;
+    totalTime += a?.time_seconds ?? 0;
     return {
-      question: truncate(q.question_text, 100),
+      question: q.question_text,
+      user_answer: userAnswer,
+      correct_answer: q.correct_answer,
+      answer_mode: ((a as any)?.answer_mode as "mcq" | "text") || "mcq",
       is_correct: isCorrect,
       confidence_score: isCorrect ? 0.9 : 0.3,
-      feedback: isCorrect ? "Correct." : `Expected: ${truncate(q.correct_answer, 60)}`,
+      feedback: isCorrect
+        ? "Correct. Your answer matches the expected incident response action."
+        : getLocalSolution(q.question_text, userAnswer, q.correct_answer),
+      time_seconds: a?.time_seconds ?? 0,
     };
   });
 
@@ -222,13 +309,18 @@ function scoreLocally(params: AnswerEvaluationParams): EvaluationResult {
     ? Math.round((correct / params.questions.length) * 100)
     : 0;
 
+  const avgTime = params.questions.length ? totalTime / params.questions.length : 60;
+  const speedScore = Math.max(0, Math.min(100, Math.round(100 - (avgTime - 20) * 1.5)));
+
   return {
     score: accuracy,
+    total_score: accuracy,
     accuracy_percentage: accuracy,
     overall_rank: accuracy >= 80 ? "Expert" : accuracy >= 60 ? "Intermediate" : "Beginner",
     strengths: accuracy >= 60 ? ["Good situational awareness"] : [],
     weaknesses: accuracy < 80 ? ["Review containment and communication steps"] : [],
     recommendations: "Review missed questions and retry the scenario.",
+    speed_score: speedScore,
     answer_feedback: feedback,
   };
 }
@@ -244,7 +336,7 @@ export async function evaluateWarRoomAnswers(
 
   const rawText = await fetchGroqCompletion(
     [{ role: "user", content: buildEvaluationPrompt(params) }],
-    { maxCompletionTokens: 350, json: true }
+    { maxCompletionTokens: 900, json: true }
   );
 
   if (!rawText) return local;
@@ -252,21 +344,32 @@ export async function evaluateWarRoomAnswers(
   const parsed = tryParseJson(rawText);
   if (!parsed || typeof parsed !== "object") return local;
 
+  const score = Number(parsed.score) || local.score;
+
   return {
-    score: Number(parsed.score) || local.score,
+    score,
+    total_score: score,
     accuracy_percentage: Number(parsed.accuracy_percentage) || local.accuracy_percentage,
     overall_rank: parsed.overall_rank || local.overall_rank,
     strengths: Array.isArray(parsed.strengths) ? parsed.strengths : local.strengths,
     weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : local.weaknesses,
     recommendations: parsed.recommendations || local.recommendations,
     ranking_analysis: parsed.ranking_analysis || "",
+    speed_score: local.speed_score,
     answer_feedback: Array.isArray(parsed.answer_feedback)
-      ? parsed.answer_feedback.map((item: any) => ({
-          question: item.question || "",
-          is_correct: Boolean(item.is_correct),
-          confidence_score: Number(item.confidence_score) || 0,
-          feedback: item.feedback || "",
-        }))
+      ? parsed.answer_feedback.map((item: any, idx: number) => {
+          const localItem = local.answer_feedback[idx];
+          return {
+            question: item.question || localItem?.question || "",
+            user_answer: item.user_answer || localItem?.user_answer || "",
+            correct_answer: item.correct_answer || localItem?.correct_answer || "",
+            answer_mode: localItem?.answer_mode || "mcq",
+            is_correct: Boolean(item.is_correct),
+            confidence_score: Number(item.confidence_score) || 0,
+            feedback: item.feedback || localItem?.feedback || "",
+            time_seconds: localItem?.time_seconds ?? 0,
+          };
+        })
       : local.answer_feedback,
   };
 }
@@ -276,16 +379,10 @@ export async function getAIGuidance(question: string, context?: string): Promise
 
   const rawText = await fetchGroqCompletion(
     [
-      {
-        role: "system",
-        content: "IR mentor. Reply in 2-3 short sentences. Plain text only.",
-      },
-      {
-        role: "user",
-        content: `Q: ${truncate(question, 200)}${context ? `\nContext: ${truncate(context, 150)}` : ""}`,
-      },
+      { role: "system", content: MENTOR_SYSTEM_PROMPT },
+      { role: "user", content: buildMentorUserPrompt(question, context) },
     ],
-    { maxCompletionTokens: 100 }
+    { maxCompletionTokens: 180 }
   );
 
   return rawText || local;
@@ -300,16 +397,13 @@ export async function getAnswerSolution(
 
   const rawText = await fetchGroqCompletion(
     [
-      {
-        role: "system",
-        content: "Explain the correct IR answer in 2 short sentences. Plain text only.",
-      },
+      { role: "system", content: SOLUTION_SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Q:${truncate(question, 120)} User:${truncate(userAnswer, 60)} Correct:${truncate(correctAnswer, 60)}`,
+        content: buildSolutionUserPrompt(question, userAnswer, correctAnswer),
       },
     ],
-    { maxCompletionTokens: 90 }
+    { maxCompletionTokens: 150 }
   );
 
   return rawText || local;

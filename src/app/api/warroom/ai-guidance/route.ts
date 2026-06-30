@@ -22,15 +22,18 @@ export async function POST(request: NextRequest) {
     const hasGroq = Boolean(process.env.GROQ_API_KEY);
     let useGroq = hasGroq;
 
-    try {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      // Guests still get chat replies via local fallback (no Groq spend).
-      if (!user) useGroq = false;
-    } catch {
-      useGroq = false;
+    // Guidance chat works for everyone when Groq is configured.
+    // Solution explanations still require login to limit API spend.
+    if (type === "solution") {
+      try {
+        const supabase = await createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) useGroq = false;
+      } catch {
+        useGroq = false;
+      }
     }
 
     let response: string;

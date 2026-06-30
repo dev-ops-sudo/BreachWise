@@ -1,27 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Radio,
-  Server,
   Shield,
   Trophy,
-  XCircle,
   Zap,
 } from "lucide-react";
-import {
-  getScenarioForAttack,
-  injectSeverityStyles,
-  nodeStatusStyles,
-  type Scenario,
-} from "@/lib/scenarios";
+import { getScenarioForAttack } from "@/lib/scenarios";
 import { upsertSession } from "@/lib/training-progress";
-import TimedQA from "./TimedQA";
-import AIGuidanceBox from "./AIGuidanceBox";
+import type { WarRoomEvaluation } from "@/lib/war-room-types";import TimedQA from "./TimedQA";
+import AIGuidanceBox, { type AIGuidanceBoxHandle } from "./AIGuidanceBox";
 import RankingDisplay from "./RankingDisplay";
 import SolutionBox from "./SolutionBox";
 
@@ -48,21 +38,23 @@ interface UserAnswer {
   answer: string;
   timeSpent: number;
   isCorrect: boolean;
+  answerMode: "mcq" | "text";
+  selectedOption?: string;
+  feedback: string;
+  confidence_score: number;
 }
-
 function formatSimTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+  const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export default function AIEnhancedWarRoom({
   attackId,
   enableAI = true,
 }: WarRoomProps) {
+  const router = useRouter();
   const scenario = getScenarioForAttack(attackId);
-
   // AI War Room State
   const [phase, setPhase] = useState<Phase>("briefing");
   const [userId, setUserId] = useState<string | null>(null);
@@ -70,14 +62,14 @@ export default function AIEnhancedWarRoom({
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
   const [preloadError, setPreloadError] = useState<string | null>(null);
-  const [aiGuidanceOpen, setAiGuidanceOpen] = useState(false);
   const [showSolution, setShowSolution] = useState<{
     question: string;
     userAnswer: string;
     correctAnswer: string;
   } | null>(null);
-  const [ranking, setRanking] = useState(null);
+  const [ranking, setRanking] = useState<WarRoomEvaluation | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const mentorRef = useRef<AIGuidanceBoxHandle>(null);
 
   // Get user ID on mount
   useEffect(() => {
@@ -183,16 +175,61 @@ export default function AIEnhancedWarRoom({
   }, [userId, loadQuestion, prefetchQuestion, attackId]);
 
   const handleAnswer = useCallback(
-    async (questionId: string, answer: string, timeSpent: number) => {
+    async (
+      questionId: string,
+      answer: string,
+      timeSpent: number,
+      meta: { mode: "mcq" | "text"; selectedOption?: string }
+    ) => {
       const question = questions.find((q) => q.id === questionId);
-      if (!question) return false;
+      if (!question) return { isCorrect: false, feedback: "Question not found." };
 
-      const isCorrect =
-        answer.trim().toLowerCase() === question.correct_answer.trim().toLowerCase();
+      let checkResult = {
+        is_correct: answer.trim().toLowerCase() === question.correct_answer.trim().toLowerCase(),
+        confidence_score: 0.5,
+        feedback: "",
+      };
+
+      try {
+        const res = await fetch("/api/warroom/check-answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: question.question_text,
+            userAnswer: answer,
+            correctAnswer: question.correct_answer,
+            mode: meta.mode,
+          }),
+        });
+        if (res.ok) {
+          checkResult = await res.json();
+        }
+      } catch {
+        checkResult.feedback = checkResult.is_correct
+          ? "Correct answer."
+          : `Expected: ${question.correct_answer}`;
+      }
+
+      if (!checkResult.feedback) {
+        checkResult.feedback = checkResult.is_correct
+          ? "Correct. Good incident response decision."
+          : `Incorrect. The best answer was: ${question.correct_answer}`;
+      }
 
       setUserAnswers((prev) => [
         ...prev,
-        { questionId, answer, timeSpent, isCorrect },
+        {
+          questionId,
+          answer,
+          timeSpent,
+          isCorrect: checkResult.is_correct,
+          answerMode: meta.mode,
+          selectedOption: meta.selectedOption
+            ? question.options?.find((o) => o.id === meta.selectedOption)?.text
+            : undefined,
+          feedback: checkResult.feedback,
+          confidence_score: checkResult.confidence_score,
+        },
       ]);
 
       const nextNum = userAnswers.length + 2;
@@ -202,87 +239,170 @@ export default function AIEnhancedWarRoom({
         });
       }
 
-      return isCorrect;
+      return { isCorrect: checkResult.is_correct, feedback: checkResult.feedback };
     },
     [questions, userAnswers.length, prefetchQuestion]
   );
+  const handleQuizComplete = useCallback(
+    async (finalSubmission?: {
+      questionId: string;
+      answer: string;
+      timeSpent: number;
+      isCorrect: boolean;
+      answerMode?: "mcq" | "text";
+      feedback?: string;
+    }) => {
+      if (!userId) return;
 
-  /**
-   * Handle quiz completion and ranking
-   */
-  const handleQuizComplete = useCallback(async (finalAnswer?: UserAnswer) => {
-    if (!userId) return;
+      try {
+        let completedAnswers = [...userAnswers];
+        if (
+          finalSubmission &&
+          !completedAnswers.some((a) => a.questionId === finalSubmission.questionId)
+        ) {
+          const q = questions.find((x) => x.id === finalSubmission.questionId);
+          completedAnswers.push({
+            questionId: finalSubmission.questionId,
+            answer: finalSubmission.answer,
+            timeSpent: finalSubmission.timeSpent,
+            isCorrect: finalSubmission.isCorrect,
+            answerMode: finalSubmission.answerMode ?? "mcq",
+            feedback: finalSubmission.feedback ?? "",
+            confidence_score: finalSubmission.isCorrect ? 0.9 : 0.3,
+          });
+        }
 
-    try {
-      const completedAnswers =
-        finalAnswer && !userAnswers.some((answer) => answer.questionId === finalAnswer.questionId)
-          ? [...userAnswers, finalAnswer]
-          : userAnswers;
+        const questionsForEval = questions.map((q) => ({
+          question_text: q.question_text,
+          correct_answer: q.correct_answer,
+          topic: q.topic,
+        }));
 
-      const questionsForEval = questions.map((q) => ({
-        question_text: q.question_text,
-        correct_answer: q.correct_answer,
-        topic: q.topic,
-      }));
+        const answersForEval = completedAnswers.map((a) => {
+          const q = questions.find((x) => x.id === a.questionId);
+          return {
+            question_text: q?.question_text ?? "",
+            user_answer: a.answer,
+            time_seconds: a.timeSpent,
+            answer_mode: a.answerMode,
+          };
+        });
 
-      const answersForEval = completedAnswers.map((a) => {
-        const q = questions.find((x) => x.id === a.questionId);
-        return {
-          question_text: q?.question_text ?? "",
-          user_answer: a.answer,
-          time_seconds: a.timeSpent,
-        };
-      });
+        const response = await fetch("/api/warroom/evaluate-answers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questions: questionsForEval, userAnswers: answersForEval }),
+        });
 
-      const response = await fetch("/api/warroom/evaluate-answers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions: questionsForEval, userAnswers: answersForEval }),
-      });
-
-      const evaluation = response.ok
-        ? await response.json()
-        : {
-            score: Math.round(
-              (completedAnswers.filter((a) => a.isCorrect).length / Math.max(completedAnswers.length, 1)) * 100
-            ),
-            accuracy_percentage: Math.round(
-              (completedAnswers.filter((a) => a.isCorrect).length / Math.max(completedAnswers.length, 1)) * 100
-            ),
-            overall_rank: "Intermediate",
+        let evaluation: WarRoomEvaluation;
+        if (response.ok) {
+          evaluation = (await response.json()) as WarRoomEvaluation;
+        } else {
+          const correct = completedAnswers.filter((a) => a.isCorrect).length;
+          const accuracy = Math.round((correct / Math.max(completedAnswers.length, 1)) * 100);
+          evaluation = {
+            score: accuracy,
+            total_score: accuracy,
+            accuracy_percentage: accuracy,
+            overall_rank: accuracy >= 80 ? "Expert" : accuracy >= 60 ? "Intermediate" : "Beginner",
             strengths: [],
             weaknesses: [],
             recommendations: "Review missed questions and retry.",
+            speed_score: 70,
+            answer_feedback: completedAnswers.map((a) => {
+              const q = questions.find((x) => x.id === a.questionId);
+              return {
+                question: q?.question_text ?? "",
+                user_answer: a.answer,
+                correct_answer: q?.correct_answer ?? "",
+                answer_mode: a.answerMode,
+                is_correct: a.isCorrect,
+                confidence_score: a.confidence_score,
+                feedback: a.feedback,
+                time_seconds: a.timeSpent,
+              };
+            }),
           };
+        }
 
-      void upsertSession(attackId, {
-        progress: 100,
-        current_module: "AI War Room complete",
-        status: "completed",
-        score: evaluation.score || evaluation.accuracy_percentage || 0,
-      }).catch(() => {});
+        evaluation.answer_feedback = evaluation.answer_feedback.map((item, idx) => {
+          const stored = completedAnswers[idx];
+          const q = questions.find((x) => x.id === stored?.questionId);
+          return {
+            ...item,
+            question: item.question || q?.question_text || "",
+            user_answer: item.user_answer || stored?.answer || "",
+            correct_answer: item.correct_answer || q?.correct_answer || "",
+            answer_mode: stored?.answerMode || item.answer_mode || "mcq",
+            feedback: item.feedback || stored?.feedback || "",
+            time_seconds: stored?.timeSpent ?? item.time_seconds ?? 0,
+            is_correct: stored?.isCorrect ?? item.is_correct,
+          };
+        });
 
-      setRanking(evaluation);
-      setPhase("complete");
-    } catch (error) {
-      console.error("Error completing quiz:", error);
-      setPhase("complete");
-      setRanking({
-        score: 50,
-        accuracy_percentage: 50,
-        overall_rank: "Intermediate",
-        strengths: [],
-        weaknesses: [],
-        recommendations: "Session complete.",
-      } as any);
-    }
-  }, [userId, questions, userAnswers, attackId]);
+        evaluation.total_score = evaluation.total_score ?? evaluation.score;
 
+        void upsertSession(attackId, {
+          progress: 100,
+          current_module: "AI War Room complete",
+          status: "completed",
+          score: evaluation.total_score,
+        }).catch(() => {});
+
+        void fetch("/api/warroom/save-results", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            attackId,
+            scenarioTitle: scenario?.title ?? attackId,
+            evaluation,
+            questions: questions.map((q) => ({
+              question_text: q.question_text,
+              correct_answer: q.correct_answer,
+              difficulty: q.difficulty,
+              topic: q.topic,
+            })),
+            answers: completedAnswers.map((a) => {
+              const q = questions.find((x) => x.id === a.questionId);
+              return {
+                question_text: q?.question_text ?? "",
+                user_answer: a.answer,
+                selected_option: a.selectedOption,
+                answer_mode: a.answerMode,
+                is_correct: a.isCorrect,
+                feedback: a.feedback,
+                confidence_score: a.confidence_score,
+                time_seconds: a.timeSpent,
+              };
+            }),
+          }),
+        }).catch((err) => console.error("Save results failed:", err));
+
+        setRanking(evaluation);
+        setPhase("complete");
+      } catch (error) {
+        console.error("Error completing quiz:", error);
+        setPhase("complete");
+        setRanking({
+          score: 50,
+          total_score: 50,
+          accuracy_percentage: 50,
+          overall_rank: "Intermediate",
+          strengths: [],
+          weaknesses: [],
+          recommendations: "Session complete.",
+          speed_score: 50,
+          answer_feedback: [],
+        });
+      }
+    },
+    [userId, questions, userAnswers, attackId, scenario?.title]
+  );
   /**
    * AI guidance request handler
    */
-  const handleAIGuidanceRequest = useCallback((questionId: string) => {
-    setAiGuidanceOpen(true);
+  const handleAIGuidanceRequest = useCallback((_questionId: string) => {
+    mentorRef.current?.focusChat("Help me with this question");
   }, []);
 
   /**
@@ -353,7 +473,8 @@ export default function AIEnhancedWarRoom({
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-6">
           <h3 className="font-semibold text-blue-900 mb-2">How This Works:</h3>
           <ul className="text-sm text-blue-800 space-y-2">
-            <li>✓ 4 questions · 30 seconds each</li>
+            <li>✓ Pick an option or write your own answer — AI grades both</li>
+            <li>✓ 4 questions · 60 seconds each</li>
             <li>✓ Q1 preloaded on login — no wait</li>
             <li>✓ AI will evaluate your answers and provide feedback</li>
             <li>✓ Get guidance or ask for solutions anytime</li>
@@ -426,6 +547,7 @@ export default function AIEnhancedWarRoom({
           {/* AI Guidance Sidebar */}
           <div className="lg:col-span-1">
             <AIGuidanceBox
+              ref={mentorRef}
               currentQuestion={
                 questions[userAnswers.length]?.question_text
               }
@@ -462,12 +584,8 @@ export default function AIEnhancedWarRoom({
           ranking={ranking}
           totalQuestions={questions.length}
           onRetry={() => window.location.reload()}
-          onHome={() => {
-            setPhase("briefing");
-            setQuestions([]);
-            setUserAnswers([]);
-            setRanking(null);
-          }}
+          onHome={() => router.push("/training")}
+          onViewHistory={() => router.push("/training/history")}
         />
       </div>
     );

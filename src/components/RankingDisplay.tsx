@@ -7,22 +7,15 @@ import {
   Award,
   Target,
 } from "lucide-react";
-
-interface RankingResult {
-  total_score: number;
-  accuracy_percentage: number;
-  overall_rank: string;
-  strengths: string[];
-  weaknesses: string[];
-  recommendations: string;
-  speed_score: number;
-}
+import type { WarRoomEvaluation } from "@/lib/war-room-types";
+import QuestionBreakdown from "./QuestionBreakdown";
 
 interface RankingDisplayProps {
-  ranking: RankingResult;
+  ranking: WarRoomEvaluation;
   totalQuestions: number;
   onRetry?: () => void;
   onHome?: () => void;
+  onViewHistory?: () => void;
 }
 
 export default function RankingDisplay({
@@ -30,6 +23,7 @@ export default function RankingDisplay({
   totalQuestions,
   onRetry,
   onHome,
+  onViewHistory,
 }: RankingDisplayProps) {
   const getRankColor = (rank: string) => {
     switch (rank.toLowerCase()) {
@@ -47,36 +41,37 @@ export default function RankingDisplay({
   };
 
   const colors = getRankColor(ranking.overall_rank);
+  const displayScore = ranking.total_score ?? ranking.score;
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      {/* Main Rank Card */}
+    <div className="w-full max-w-4xl mx-auto">
       <div className={`${colors.bg} rounded-xl p-8 mb-8 text-center`}>
         <Trophy className={`h-16 w-16 ${colors.text} mx-auto mb-4`} />
         <h1 className={`text-4xl font-bold ${colors.text} mb-2`}>
           {ranking.overall_rank.toUpperCase()}
         </h1>
         <div className={`inline-block ${colors.badge} bg-opacity-80 text-white px-4 py-2 rounded-lg mb-4`}>
-          Score: {ranking.total_score}/100
+          Score: {displayScore}/100
         </div>
         <p className={`${colors.text} text-lg font-medium`}>
-          Accuracy: {ranking.accuracy_percentage.toFixed(1)}%
+          Accuracy: {ranking.accuracy_percentage.toFixed(1)}% · {totalQuestions} questions
         </p>
+        {ranking.ranking_analysis && (
+          <p className="mt-3 text-sm opacity-90">{ranking.ranking_analysis}</p>
+        )}
       </div>
 
-      {/* Metrics Grid */}
+      <QuestionBreakdown items={ranking.answer_feedback} />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {/* Total Score */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
           <Award className="h-8 w-8 text-blue-600 mx-auto mb-3" />
           <p className="text-gray-600 text-sm font-medium mb-1">Overall Score</p>
           <p className="text-3xl font-bold text-gray-900">
-            {ranking.total_score}
+            {displayScore}
             <span className="text-lg text-gray-500">/100</span>
           </p>
         </div>
-
-        {/* Accuracy */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
           <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto mb-3" />
           <p className="text-gray-600 text-sm font-medium mb-1">Accuracy</p>
@@ -85,33 +80,26 @@ export default function RankingDisplay({
             <span className="text-lg text-gray-500">%</span>
           </p>
         </div>
-
-        {/* Speed */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
           <TrendingUp className="h-8 w-8 text-purple-600 mx-auto mb-3" />
           <p className="text-gray-600 text-sm font-medium mb-1">Speed Score</p>
           <p className="text-3xl font-bold text-gray-900">
-            {ranking.speed_score}
+            {ranking.speed_score ?? 0}
             <span className="text-lg text-gray-500">%</span>
           </p>
         </div>
       </div>
 
-      {/* Strengths & Weaknesses */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Strengths */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-600" />
             Your Strengths
           </h3>
-          {ranking.strengths && ranking.strengths.length > 0 ? (
+          {ranking.strengths?.length > 0 ? (
             <ul className="space-y-2">
               {ranking.strengths.map((strength, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-3 text-sm text-gray-700"
-                >
+                <li key={idx} className="flex items-start gap-3 text-sm text-gray-700">
                   <span className="text-green-600 font-bold mt-0.5">✓</span>
                   <span>{strength}</span>
                 </li>
@@ -121,20 +109,15 @@ export default function RankingDisplay({
             <p className="text-gray-500 text-sm">Keep practicing to identify strengths!</p>
           )}
         </div>
-
-        {/* Weaknesses */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-red-600" />
             Areas for Improvement
           </h3>
-          {ranking.weaknesses && ranking.weaknesses.length > 0 ? (
+          {ranking.weaknesses?.length > 0 ? (
             <ul className="space-y-2">
               {ranking.weaknesses.map((weakness, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-3 text-sm text-gray-700"
-                >
+                <li key={idx} className="flex items-start gap-3 text-sm text-gray-700">
                   <span className="text-red-600 font-bold mt-0.5">→</span>
                   <span>{weakness}</span>
                 </li>
@@ -146,19 +129,23 @@ export default function RankingDisplay({
         </div>
       </div>
 
-      {/* Recommendations */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
         <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
           <Target className="h-5 w-5" />
           Recommendations for Next Time
         </h3>
-        <p className="text-blue-800 text-sm leading-relaxed">
-          {ranking.recommendations}
-        </p>
+        <p className="text-blue-800 text-sm leading-relaxed">{ranking.recommendations}</p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-4 justify-center">
+      <div className="flex flex-wrap gap-4 justify-center">
+        {onViewHistory && (
+          <button
+            onClick={onViewHistory}
+            className="px-6 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors font-medium"
+          >
+            View Training History
+          </button>
+        )}
         {onRetry && (
           <button
             onClick={onRetry}

@@ -77,6 +77,9 @@ export default function NavbarActions({ variant = "default" }: NavbarActionsProp
         <Link href="/attacks" className="btn-primary text-sm !px-5 !py-2.5">
           Scenarios
         </Link>
+        <Link href="/training/history" className="btn-ghost hidden text-sm sm:inline-flex">
+          History
+        </Link>
         <button
           type="button"
           onClick={handleSignOut}
