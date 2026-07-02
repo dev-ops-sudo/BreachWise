@@ -61,6 +61,7 @@ async function callGroqOneQuestion(attackId: string, questionNumber: number) {
   const phase = scenario?.decisions[questionNumber - 1]?.nist_phase ?? phases[questionNumber - 1] ?? "Respond";
   const objective = attack?.objectives[questionNumber - 1] ?? attack?.objectives[0] ?? "incident response";
   const ctx = truncate(scenario?.briefing ?? attack?.description ?? attackId, 320);
+  const randomSeed = Math.random().toString(36).substring(7);
 
   const prompt = `Create exactly one scenario-specific cybersecurity incident-response MCQ.
 Scenario: ${attack?.title ?? attackId}
@@ -70,7 +71,9 @@ Question number: ${questionNumber} of 4
 NIST phase: ${phase}
 Training objective: ${objective}
 Scenario briefing: ${ctx}
+Randomization Seed: ${randomSeed}
 
+IMPORTANT: Ensure the question, options, and context are completely unique, diverse, and highly realistic. Avoid generating identical or generic questions. Provide a fresh angle or specific technical detail for this scenario.
 Make the decision realistic and directly tied to this scenario. Provide four concise options and exactly one correct option.
 Return JSON only: {"question":"...","context":"one line","options":[{"id":"a","text":"...","correct":false},{"id":"b","text":"...","correct":true},{"id":"c","text":"...","correct":false},{"id":"d","text":"...","correct":false}],"nist_phase":"${phase}"}`;
 
@@ -84,8 +87,8 @@ Return JSON only: {"question":"...","context":"one line","options":[{"id":"a","t
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
-        max_completion_tokens: 280,
+        temperature: 0.7,
+        max_completion_tokens: 350,
         response_format: { type: "json_object" },
       }),
       signal: AbortSignal.timeout(12_000),

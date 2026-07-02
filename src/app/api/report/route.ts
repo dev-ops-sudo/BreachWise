@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       `Do not include markdown formatting or any text outside the JSON.`;
 
     const rawText = await fetchGroqReport(promptText);
-    let parsed: Record<string, unknown> | null = null;
+    let parsed: Record<string, any> | null = null;
 
     if (rawText) {
       try {
@@ -120,6 +120,9 @@ export async function POST(request: NextRequest) {
 
     if (!parsed) {
       parsed = getMockReportResult(scenarioTitle, scores, nistPhases, readinessLevel);
+    } else {
+      parsed.overall_score = Math.round(averageScore * 10);
+      parsed.readiness_level = readinessLevel;
     }
 
     return NextResponse.json(parsed);

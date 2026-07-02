@@ -27,6 +27,8 @@ interface AnswerEvaluationParams {
     question_text: string;
     user_answer: string;
     time_seconds: number;
+    answer_mode?: string;
+    is_correct?: boolean;
   }>;
 }
 
@@ -288,14 +290,14 @@ function scoreLocally(params: AnswerEvaluationParams): EvaluationResult {
   const feedback = params.questions.map((q) => {
     const a = params.userAnswers.find((u) => u.question_text === q.question_text);
     const userAnswer = a?.user_answer ?? "";
-    const isCorrect = answersMatch(userAnswer, q.correct_answer);
+    const isCorrect = a && typeof a.is_correct === "boolean" ? a.is_correct : answersMatch(userAnswer, q.correct_answer);
     if (isCorrect) correct += 1;
     totalTime += a?.time_seconds ?? 0;
     return {
       question: q.question_text,
       user_answer: userAnswer,
       correct_answer: q.correct_answer,
-      answer_mode: ((a as any)?.answer_mode as "mcq" | "text") || "mcq",
+      answer_mode: (a?.answer_mode as "mcq" | "text") || "mcq",
       is_correct: isCorrect,
       confidence_score: isCorrect ? 0.9 : 0.3,
       feedback: isCorrect
@@ -344,15 +346,15 @@ export async function evaluateWarRoomAnswers(
   const parsed = tryParseJson(rawText);
   if (!parsed || typeof parsed !== "object") return local;
 
-  const score = Number(parsed.score) || local.score;
+  const score = local.score;
 
   return {
     score,
     total_score: score,
-    accuracy_percentage: Number(parsed.accuracy_percentage) || local.accuracy_percentage,
-    overall_rank: parsed.overall_rank || local.overall_rank,
-    strengths: Array.isArray(parsed.strengths) ? parsed.strengths : local.strengths,
-    weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : local.weaknesses,
+    accuracy_percentage: local.accuracy_percentage,
+    overall_rank: local.overall_rank,
+    strengths: Array.isArray(parsed.strengths) && parsed.strengths.length > 0 ? parsed.strengths : local.strengths,
+    weaknesses: Array.isArray(parsed.weaknesses) && parsed.weaknesses.length > 0 ? parsed.weaknesses : local.weaknesses,
     recommendations: parsed.recommendations || local.recommendations,
     ranking_analysis: parsed.ranking_analysis || "",
     speed_score: local.speed_score,
@@ -364,7 +366,7 @@ export async function evaluateWarRoomAnswers(
             user_answer: item.user_answer || localItem?.user_answer || "",
             correct_answer: item.correct_answer || localItem?.correct_answer || "",
             answer_mode: localItem?.answer_mode || "mcq",
-            is_correct: Boolean(item.is_correct),
+            is_correct: localItem ? localItem.is_correct : Boolean(item.is_correct),
             confidence_score: Number(item.confidence_score) || 0,
             feedback: item.feedback || localItem?.feedback || "",
             time_seconds: localItem?.time_seconds ?? 0,

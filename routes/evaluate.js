@@ -4,7 +4,7 @@ const { stripBackticks } = require('../lib/gemini-client');
 
 function getMockEvaluateResult(question, selectedOption, isCorrect, nistPhase) {
   return {
-    score: isCorrect ? 9 : 3,
+    score: isCorrect ? 10 : 0,
     verdict: isCorrect ? 'Correct' : 'Incorrect',
     nist_phase: nistPhase,
     reasoning: isCorrect
@@ -89,6 +89,8 @@ router.post('/', async (req, res) => {
 
     if (!parsed) {
       parsed = getMockEvaluateResult(question, selectedOption, isCorrect, nistPhase);
+    } else {
+      parsed.score = isCorrect ? 10 : 0;
     }
 
     return res.json(parsed);

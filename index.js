@@ -143,6 +143,9 @@ app.post('/api/report', async (req, res, next) => {
 
     if (!parsed) {
       parsed = getMockReportResult(scenarioTitle, scores, nistPhases, readinessLevel);
+    } else {
+      parsed.overall_score = Math.round(averageScore * 10);
+      parsed.readiness_level = readinessLevel;
     }
 
     return res.json(parsed);

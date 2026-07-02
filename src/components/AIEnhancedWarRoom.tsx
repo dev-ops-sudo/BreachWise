@@ -146,6 +146,15 @@ export default function AIEnhancedWarRoom({
       setIsGeneratingQuestions(true);
       setPreloadError(null);
 
+      // Unconditionally clear old generated questions for this user and scenario to guarantee fresh generation
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      await supabase
+        .from("generated_questions")
+        .delete()
+        .eq("user_id", userId)
+        .eq("scenario_id", attackId);
+
       const q1 = await loadQuestion(1);
       if (!q1) throw new Error("No question available");
 
@@ -285,6 +294,7 @@ export default function AIEnhancedWarRoom({
             user_answer: a.answer,
             time_seconds: a.timeSpent,
             answer_mode: a.answerMode,
+            is_correct: a.isCorrect,
           };
         });
 

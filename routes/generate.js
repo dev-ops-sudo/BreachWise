@@ -7,10 +7,10 @@ function getMockGenerateResult(scenarioTitle, scenarioBriefing, attackType, nist
     question: `In the ${nistPhase} phase of the ${attackType} attack, what is the best next step to contain the incident?`,
     context: `Scenario: ${scenarioTitle}. Briefing: ${scenarioBriefing}`,
     options: [
-      { id: 'a', text: 'Isolate affected hosts and take systems offline.' },
-      { id: 'b', text: 'Continue monitoring network traffic without action.' },
-      { id: 'c', text: 'Notify external vendors immediately.' },
-      { id: 'd', text: 'Restore backups before investigating.' },
+      { id: 'a', text: 'Isolate affected hosts and take systems offline.', correct: true },
+      { id: 'b', text: 'Continue monitoring network traffic without action.', correct: false },
+      { id: 'c', text: 'Notify external vendors immediately.', correct: false },
+      { id: 'd', text: 'Restore backups before investigating.', correct: false },
     ],
     nist_phase: nistPhase,
   };
@@ -60,17 +60,20 @@ router.post('/', async (req, res) => {
       previousContext.push(`previousScore: ${previousScore ?? 'none'}`);
     }
 
+    const randomSeed = Math.random().toString(36).substring(7);
     const promptText = `You are building a cybersecurity incident response training decision point for BreachWise.\n` +
       `Scenario Title: ${scenarioTitle}\n` +
       `Briefing: ${scenarioBriefing}\n` +
       `Attack Type: ${attackType}\n` +
       `NIST Phase: ${nistPhase}\n` +
       `Question Number: ${questionNumber}\n` +
+      `Randomization Seed: ${randomSeed}\n` +
       `${phaseInstruction}\n` +
       `${difficultyInstruction}\n` +
       (previousContext.length ? `Previous context:\n${previousContext.join('\n')}\n` : '') +
+      `IMPORTANT: Ensure the question, options, and context are completely unique, diverse, and highly realistic. Avoid generating identical or generic questions.\n` +
       `Return only valid JSON with exactly these properties: question, context, options, nist_phase.\n` +
-      `Options must be an array of four objects with ids a, b, c, d. Only one option may be correct.\n` +
+      `Options must be an array of four objects with keys: id (a, b, c, d), text (the option text), and correct (boolean indicating if the option is correct). Only one option must have correct set to true.\n` +
       `Do not include markdown formatting or explanatory text around the JSON.\n` +
       `Make the question specific to the attack type and scenario.`;
 
@@ -89,7 +92,7 @@ router.post('/', async (req, res) => {
         body: JSON.stringify({
           model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
           messages: [{ role: 'user', content: promptText }],
-          temperature: 0.35,
+          temperature: 0.7,
           max_completion_tokens: 500,
           response_format: { type: 'json_object' },
         }),
