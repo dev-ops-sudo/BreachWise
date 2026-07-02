@@ -58,6 +58,7 @@ export default function AIEnhancedWarRoom({
   // AI War Room State
   const [phase, setPhase] = useState<Phase>("briefing");
   const [userId, setUserId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false);
@@ -93,23 +94,32 @@ export default function AIEnhancedWarRoom({
       }
     };
 
+    let sid = sessionStorage.getItem("war_room_session_id");
+    if (!sid) {
+      sid = crypto.randomUUID();
+      sessionStorage.setItem("war_room_session_id", sid);
+    }
+    setSessionId(sid);
+
     initializeSession();
   }, [attackId]);
 
   const questionCacheRef = useRef(new Map<number, Question>());
   const pendingQuestionsRef = useRef(new Map<number, Promise<Question | null>>());
 
-  const prefetchQuestion = useCallback((num: number): Promise<Question | null> => {
+  const prefetchQuestion = useCallback((num: number, sid?: string): Promise<Question | null> => {
     const cached = questionCacheRef.current.get(num);
     if (cached) return Promise.resolve(cached);
 
     const pending = pendingQuestionsRef.current.get(num);
     if (pending) return pending;
 
+    const currentSessionId = sid || sessionId || sessionStorage.getItem("war_room_session_id") || "";
+
     const request = fetch("/api/warroom/scenario-questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attackId, questionNumber: num }),
+      body: JSON.stringify({ attackId, questionNumber: num, sessionId: currentSessionId }),
     })
       .then(async (res) => {
         if (!res.ok) return null;
@@ -122,19 +132,21 @@ export default function AIEnhancedWarRoom({
 
     pendingQuestionsRef.current.set(num, request);
     return request;
-  }, [attackId]);
+  }, [attackId, sessionId]);
 
-  const loadQuestion = useCallback(async (num: number) => {
+  const loadQuestion = useCallback(async (num: number, sid?: string) => {
     const cached = questionCacheRef.current.get(num);
     if (cached) return cached;
 
-    const res = await fetch(`/api/warroom/scenario-questions?attackId=${attackId}&n=${num}`);
+    const currentSessionId = sid || sessionId || sessionStorage.getItem("war_room_session_id") || "";
+
+    const res = await fetch(`/api/warroom/scenario-questions?attackId=${attackId}&n=${num}&sessionId=${currentSessionId}`);
     if (!res.ok) return null;
     const data = await res.json();
     const question = data.question as Question | null;
     if (question) questionCacheRef.current.set(num, question);
     return question;
-  }, [attackId]);
+  }, [attackId, sessionId]);
 
   const startWarRoom = useCallback(async () => {
     if (!userId) {
@@ -146,16 +158,16 @@ export default function AIEnhancedWarRoom({
       setIsGeneratingQuestions(true);
       setPreloadError(null);
 
-      // Unconditionally clear old generated questions for this user and scenario to guarantee fresh generation
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      await supabase
-        .from("generated_questions")
-        .delete()
-        .eq("user_id", userId)
-        .eq("scenario_id", attackId);
+      // Reset cache for the new simulation
+      questionCacheRef.current.clear();
+      pendingQuestionsRef.current.clear();
 
-      const q1 = await loadQuestion(1);
+      // Generate unique session_id representing this simulation session
+      const newSessionId = crypto.randomUUID();
+      sessionStorage.setItem("war_room_session_id", newSessionId);
+      setSessionId(newSessionId);
+
+      const q1 = await loadQuestion(1, newSessionId);
       if (!q1) throw new Error("No question available");
 
       setQuestions([q1]);
@@ -168,7 +180,7 @@ export default function AIEnhancedWarRoom({
       }).catch(() => {});
 
       // Keep only one question ahead to avoid request bursts.
-      prefetchQuestion(2).then((q) => {
+      prefetchQuestion(2, newSessionId).then((q) => {
         if (q) {
           setQuestions((prev) =>
             prev.some((x) => x.id === q.id) ? prev : [...prev, q]
@@ -243,7 +255,7 @@ export default function AIEnhancedWarRoom({
 
       const nextNum = userAnswers.length + 2;
       if (nextNum <= TARGET_QUESTION_COUNT && !questions.find((q) => q.question_number === nextNum)) {
-        prefetchQuestion(nextNum).then((q) => {
+        prefetchQuestion(nextNum, sessionId).then((q) => {
           if (q) setQuestions((prev) => (prev.some((x) => x.id === q.id) ? prev : [...prev, q]));
         });
       }
@@ -308,8 +320,11 @@ export default function AIEnhancedWarRoom({
         if (response.ok) {
           evaluation = (await response.json()) as WarRoomEvaluation;
         } else {
-          const correct = completedAnswers.filter((a) => a.isCorrect).length;
-          const accuracy = Math.round((correct / Math.max(completedAnswers.length, 1)) * 100);
+          const totalQuestions = completedAnswers.length;
+          const correctCount = completedAnswers.filter((a) =>
+            a.isCorrect || (a as any).correct || (a as any).verdict === "Correct"
+          ).length;
+          const accuracy = totalQuestions === 0 ? 0 : Math.round((correctCount / totalQuestions) * 100);
           evaluation = {
             score: accuracy,
             total_score: accuracy,
@@ -366,6 +381,7 @@ export default function AIEnhancedWarRoom({
             attackId,
             scenarioTitle: scenario?.title ?? attackId,
             evaluation,
+            sessionId,
             questions: questions.map((q) => ({
               question_text: q.question_text,
               correct_answer: q.correct_answer,

@@ -68,12 +68,13 @@ function parseJsonFromText(text) {
   }
 }
 
-async function generateAndStore(userId, scenario, questionNumber, previousQuestion, previousAnswer, previousScore) {
+async function generateAndStore(userId, scenario, questionNumber, previousQuestion, previousAnswer, previousScore, sessionId) {
   const nistPhase = scenario.nistPhases[questionNumber - 1] || 'Detect';
   const isFirst = questionNumber === 1;
+  const sid = sessionId || '';
 
   const prompt = isFirst
-    ? `You are a senior cybersecurity incident response trainer.\nScenario: ${scenario.title}\nAttack Type: ${scenario.attackType}\nNIST Phase: ${nistPhase}\nQuestion: ${questionNumber} of 4\n\nGenerate a realistic high-pressure decision point question for an Incident Response Lead.\n\nReturn ONLY valid JSON, no markdown, no backticks:\n{\n  "question": "the question",\n  "context": "one sentence new development",\n  "options": [\n    { "id": "a", "text": "option", "correct": false },\n    { "id": "b", "text": "option", "correct": true },\n    { "id": "c", "text": "option", "correct": false },\n    { "id": "d", "text": "option", "correct": false }\n  ],\n  "nist_phase": "${nistPhase}"\n}``
+    ? `You are a senior cybersecurity incident response trainer.\nScenario: ${scenario.title}\nAttack Type: ${scenario.attackType}\nNIST Phase: ${nistPhase}\nQuestion: ${questionNumber} of 4\n\nGenerate a realistic high-pressure decision point question for an Incident Response Lead.\n\nReturn ONLY valid JSON, no markdown, no backticks:\n{\n  "question": "the question",\n  "context": "one sentence new development",\n  "options": [\n    { "id": "a", "text": "option", "correct": false },\n    { "id": "b", "text": "option", "correct": true },\n    { "id": "c", "text": "option", "correct": false },\n    { "id": "d", "text": "option", "correct": false }\n  ],\n  "nist_phase": "${nistPhase}"\n}`
     : `You are a senior cybersecurity incident response trainer.\nScenario: ${scenario.title}\nAttack Type: ${scenario.attackType}\nNIST Phase: ${nistPhase}\nQuestion: ${questionNumber} of 4\nPrevious question: "${previousQuestion || 'none'}"\nTrainee answered: "${previousAnswer || 'none'}"\nScore: ${typeof previousScore === 'number' ? previousScore : 5}/10\n\n${typeof previousScore === 'number' && previousScore < 6 ? 'Trainee struggled — generate a clearer follow-up on same phase.' : 'Trainee did well — generate a harder question building on previous.'}\n\nReturn ONLY valid JSON, no markdown, no backticks:\n{\n  "question": "the question",\n  "context": "one sentence new development",\n  "options": [\n    { "id": "a", "text": "option", "correct": false },\n    { "id": "b", "text": "option", "correct": true },\n    { "id": "c", "text": "option", "correct": false },\n    { "id": "d", "text": "option", "correct": false }\n  ],\n  "nist_phase": "${nistPhase}"\n}`;
 
   if (!process.env.GROQ_API_KEY) {
@@ -121,6 +122,7 @@ async function generateAndStore(userId, scenario, questionNumber, previousQuesti
     options: generated.options,
     nist_phase: generated.nist_phase,
     status: 'ready',
+    session_id: sid,
   });
 
   return generated;
@@ -128,15 +130,17 @@ async function generateAndStore(userId, scenario, questionNumber, previousQuesti
 
 router.post('/init', async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId, sessionId } = req.body;
     if (!userId) {
       return res.status(400).json({ error: 'userId required' });
     }
 
+    const sid = sessionId || '';
     const { data: existing, error: getError } = await supabase
       .from('generated_questions')
       .select('id')
       .eq('user_id', userId)
+      .eq('session_id', sid)
       .eq('question_number', 1)
       .limit(1);
 
@@ -167,6 +171,7 @@ router.post('/next', async (req, res) => {
       previousQuestion,
       previousAnswer,
       previousScore,
+      sessionId,
     } = req.body;
 
     if (!userId || !scenarioId || typeof questionNumber !== 'number') {
@@ -189,7 +194,8 @@ router.post('/next', async (req, res) => {
       nextNumber,
       previousQuestion,
       previousAnswer,
-      previousScore
+      previousScore,
+      sessionId
     );
 
     return res.json(generated);
@@ -201,17 +207,19 @@ router.post('/next', async (req, res) => {
 
 router.get('/question', async (req, res) => {
   try {
-    const { userId, scenarioId, questionNumber } = req.query;
+    const { userId, scenarioId, questionNumber, sessionId } = req.query;
     if (!userId || !scenarioId || !questionNumber) {
       return res.status(400).json({ error: 'Missing query parameters' });
     }
 
+    const sid = sessionId || '';
     const { data, error } = await supabase
       .from('generated_questions')
       .select('*')
       .eq('user_id', userId)
       .eq('scenario_id', scenarioId)
       .eq('question_number', Number(questionNumber))
+      .eq('session_id', sid)
       .single();
 
     if (error) {

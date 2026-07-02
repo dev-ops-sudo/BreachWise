@@ -19,9 +19,9 @@ function parseJsonFromText(text) {
 
 router.post('/', async (req, res) => {
   try {
-    const { userId, scenarioId, scenarioTitle, answers } = req.body;
+    const { userId, scenarioId, scenarioTitle, answers, sessionId } = req.body;
 
-    if (!userId || !scenarioId || !scenarioTitle || !Array.isArray(answers) || answers.length !== 4) {
+    if (!userId || !scenarioId || !scenarioTitle || !Array.isArray(answers) || answers.length === 0) {
       return res.status(400).json({ error: 'Missing or invalid request body fields' });
     }
 
@@ -78,8 +78,15 @@ router.post('/', async (req, res) => {
 
     const data = await response.json();
     const rawText = data.choices?.[0]?.message?.content;
+
+    const totalQuestions = answers.length;
+    const correctCount = answers.filter(a => 
+      a.isCorrect || a.correct || a.verdict === 'Correct'
+    ).length;
+    const overallScore = totalQuestions === 0 ? 0 : Math.round((correctCount / totalQuestions) * 100);
+
     const parsed = parseJsonFromText(rawText) || {
-      overall_score: 70,
+      overall_score: overallScore,
       readiness_level: 'SOC Analyst',
       decisions: answers.map((a, index) => ({
         question_number: index + 1,
@@ -94,6 +101,7 @@ router.post('/', async (req, res) => {
       top_recommendation: 'Focus on selecting actions that clearly isolate the incident and preserve evidence during containment.',
       suitable_for: 'SOC Analyst',
     };
+    parsed.overall_score = overallScore;
 
     const answerRows = answers.map((answer, index) => ({
       user_id: userId,
@@ -122,6 +130,7 @@ router.post('/', async (req, res) => {
       readiness_level: parsed.readiness_level,
       strong_phases: parsed.strong_phases,
       weak_phases: parsed.weak_phases,
+      session_id: sessionId || null,
       completed_at: new Date().toISOString(),
     });
 

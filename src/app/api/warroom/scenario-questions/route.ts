@@ -10,6 +10,7 @@ import {
 export async function GET(request: NextRequest) {
   const attackId = request.nextUrl.searchParams.get("attackId");
   const num = Number(request.nextUrl.searchParams.get("n") ?? "1");
+  const sessionId = request.nextUrl.searchParams.get("sessionId") || "";
 
   if (!attackId || !ATTACK_IDS.includes(attackId) || !Number.isInteger(num) || num < 1 || num > 4) {
     return NextResponse.json({ error: "Valid attackId and question number required" }, { status: 400 });
@@ -24,9 +25,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let row = await getStoredQuestion(user.id, attackId, num);
+  let row = await getStoredQuestion(user.id, attackId, num, sessionId);
   if (!row) {
-    row = await generateAndStoreQuestion(user.id, attackId, num);
+    row = await generateAndStoreQuestion(user.id, attackId, num, sessionId);
   }
 
   return NextResponse.json({ question: toUiQuestion(row) });
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { attackId, questionNumber } = await request.json();
+    const { attackId, questionNumber, sessionId } = await request.json();
     if (
       typeof attackId !== "string" ||
       !ATTACK_IDS.includes(attackId) ||
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const row = await generateAndStoreQuestion(user.id, attackId, questionNumber);
+    const row = await generateAndStoreQuestion(user.id, attackId, questionNumber, sessionId || "");
     return NextResponse.json({ question: toUiQuestion(row) });
   } catch (error) {
     console.error("Generate scenario question error:", error);

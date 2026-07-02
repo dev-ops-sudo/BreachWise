@@ -110,15 +110,18 @@ Return JSON only: {"question":"...","context":"one line","options":[{"id":"a","t
 export async function getStoredQuestion(
   userId: string,
   attackId: string,
-  questionNumber: number
+  questionNumber: number,
+  sessionId?: string | null
 ): Promise<StoredQuestion | null> {
   const supabase = await createClient();
+  const sid = sessionId || "";
   const { data, error } = await supabase
     .from("generated_questions")
     .select("*")
     .eq("user_id", userId)
     .eq("scenario_id", attackId)
     .eq("question_number", questionNumber)
+    .eq("session_id", sid)
     .maybeSingle();
   if (error) {
     console.warn("Could not read stored question:", error.message);
@@ -130,9 +133,11 @@ export async function getStoredQuestion(
 export async function generateAndStoreQuestion(
   userId: string,
   attackId: string,
-  questionNumber: number
+  questionNumber: number,
+  sessionId?: string | null
 ): Promise<StoredQuestion> {
-  const existing = await getStoredQuestion(userId, attackId, questionNumber);
+  const sid = sessionId || "";
+  const existing = await getStoredQuestion(userId, attackId, questionNumber, sid);
   if (existing) return existing;
 
   const generated = await callGroqOneQuestion(attackId, questionNumber);
@@ -150,8 +155,9 @@ export async function generateAndStoreQuestion(
         options: generated.options,
         nist_phase: generated.nist_phase ?? "Detect",
         status: "ready",
+        session_id: sid,
       },
-      { onConflict: "user_id,scenario_id,question_number" }
+      { onConflict: "user_id,scenario_id,question_number,session_id" }
     )
     .select()
     .single();

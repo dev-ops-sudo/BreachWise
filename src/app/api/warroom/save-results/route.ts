@@ -14,10 +14,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { attackId, scenarioTitle, evaluation, answers, questions } = body as {
+    const { attackId, scenarioTitle, evaluation, answers, questions, sessionId } = body as {
       attackId: string;
       scenarioTitle: string;
       evaluation: WarRoomEvaluation;
+      sessionId?: string;
       questions: Array<{
         question_text: string;
         correct_answer: string;
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
       summary: evaluation.ranking_analysis || evaluation.recommendations,
       top_recommendation: evaluation.recommendations,
       suitable_for: evaluation.overall_rank,
+      session_id: sessionId || null,
     });
 
     return NextResponse.json({ success: true, sessionId: warSession.id });

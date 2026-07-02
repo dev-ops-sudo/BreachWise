@@ -92,17 +92,28 @@ app.post('/api/report', async (req, res, next) => {
     if (
       typeof scenarioTitle !== 'string' ||
       !Array.isArray(scores) ||
-      scores.length !== 4 ||
+      scores.length === 0 ||
       !Array.isArray(nistPhases) ||
-      nistPhases.length !== 4 ||
-      !scores.every((item) => typeof item === 'number' && item >= 1 && item <= 10) ||
+      nistPhases.length === 0 ||
+      !scores.every((item) => typeof item === 'number' && item >= 0 && item <= 10) ||
       !nistPhases.every((item) => typeof item === 'string')
     ) {
       return res.status(400).json({ error: 'Missing or invalid request body fields' });
     }
 
+    const answers = scores.map((s) => ({
+      isCorrect: s === 10 || s >= 8,
+      correct: s === 10 || s >= 8,
+      verdict: (s === 10 || s >= 8) ? 'Correct' : 'Incorrect',
+    }));
+
+    const totalQuestions = answers.length;
+    const correctCount = answers.filter((a) =>
+      a.isCorrect || a.correct || a.verdict === 'Correct'
+    ).length;
+    const overallScore = totalQuestions === 0 ? 0 : Math.round((correctCount / totalQuestions) * 100);
+
     const averageScore = scores.reduce((sum, value) => sum + value, 0) / scores.length;
-    const overallScore = Math.round(averageScore * 10);
     let readinessLevel = 'Junior Analyst';
 
     if (averageScore < 4) {
@@ -144,9 +155,11 @@ app.post('/api/report', async (req, res, next) => {
     if (!parsed) {
       parsed = getMockReportResult(scenarioTitle, scores, nistPhases, readinessLevel);
     } else {
-      parsed.overall_score = Math.round(averageScore * 10);
+      parsed.overall_score = overallScore;
       parsed.readiness_level = readinessLevel;
     }
+
+    parsed.overall_score = overallScore;
 
     return res.json(parsed);
   } catch (error) {

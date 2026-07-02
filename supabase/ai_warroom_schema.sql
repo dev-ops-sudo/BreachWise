@@ -129,8 +129,9 @@ create table if not exists public.generated_questions (
   options jsonb not null,
   nist_phase text not null,
   status text not null default 'ready',
+  session_id text,
   created_at timestamptz not null default now(),
-  unique(user_id, scenario_id, question_number)
+  unique(user_id, scenario_id, question_number, session_id)
 );
 
 alter table public.generated_questions enable row level security;
@@ -187,6 +188,7 @@ create table if not exists public.scenario_results (
   summary text,
   top_recommendation text,
   suitable_for text,
+  session_id text,
   completed_at timestamptz not null default now()
 );
 
