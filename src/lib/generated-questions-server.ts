@@ -111,17 +111,17 @@ export async function getStoredQuestion(
   userId: string,
   attackId: string,
   questionNumber: number,
-  sessionId?: string | null
+  sessionId: string
 ): Promise<StoredQuestion | null> {
+  if (!sessionId) return null;
   const supabase = await createClient();
-  const sid = sessionId || "";
   const { data, error } = await supabase
     .from("generated_questions")
     .select("*")
     .eq("user_id", userId)
     .eq("scenario_id", attackId)
     .eq("question_number", questionNumber)
-    .eq("session_id", sid)
+    .eq("session_id", sessionId)
     .maybeSingle();
   if (error) {
     console.warn("Could not read stored question:", error.message);
@@ -134,10 +134,13 @@ export async function generateAndStoreQuestion(
   userId: string,
   attackId: string,
   questionNumber: number,
-  sessionId?: string | null
+  sessionId: string
 ): Promise<StoredQuestion> {
-  const sid = sessionId || "";
-  const existing = await getStoredQuestion(userId, attackId, questionNumber, sid);
+  if (!sessionId) {
+    throw new Error("sessionId is required");
+  }
+
+  const existing = await getStoredQuestion(userId, attackId, questionNumber, sessionId);
   if (existing) return existing;
 
   const generated = await callGroqOneQuestion(attackId, questionNumber);
@@ -155,7 +158,7 @@ export async function generateAndStoreQuestion(
         options: generated.options,
         nist_phase: generated.nist_phase ?? "Detect",
         status: "ready",
-        session_id: sid,
+        session_id: sessionId,
       },
       { onConflict: "user_id,scenario_id,question_number,session_id" }
     )
@@ -176,36 +179,18 @@ export async function generateAndStoreQuestion(
   };
 }
 
-/** 1 question per attack — runs on login (skips existing). */
-const preloadJobs = new Map<string, Promise<{ attackId: string; ok: boolean }[]>>();
-
-export async function preloadAllScenarios(userId: string) {
-  const activeJob = preloadJobs.get(userId);
-  if (activeJob) return activeJob;
-
-  const job = (async () => {
-    const results: { attackId: string; ok: boolean }[] = [];
-    for (let index = 0; index < ATTACK_IDS.length; index += 2) {
-      const batch = ATTACK_IDS.slice(index, index + 2);
-      const batchResults = await Promise.all(
-        batch.map(async (attackId) => {
-          try {
-            const existing = await getStoredQuestion(userId, attackId, 1);
-            if (!existing) await generateAndStoreQuestion(userId, attackId, 1);
-            return { attackId, ok: true };
-          } catch (error) {
-            console.error(`Failed to preload ${attackId}:`, error);
-            return { attackId, ok: false };
-          }
-        })
-      );
-      results.push(...batchResults);
+/** Warm-up: generate Q1 per scenario for a specific simulation session. */
+export async function initSessionQuestions(userId: string, sessionId: string) {
+  const results: { attackId: string; ok: boolean }[] = [];
+  for (const attackId of ATTACK_IDS) {
+    try {
+      await generateAndStoreQuestion(userId, attackId, 1, sessionId);
+      results.push({ attackId, ok: true });
+    } catch {
+      results.push({ attackId, ok: false });
     }
-    return results;
-  })().finally(() => preloadJobs.delete(userId));
-
-  preloadJobs.set(userId, job);
-  return job;
+  }
+  return results;
 }
 
 export function toUiQuestion(row: StoredQuestion) {

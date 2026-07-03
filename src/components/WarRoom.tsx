@@ -97,6 +97,10 @@ export default function WarRoom({ scenario }: WarRoomProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [scores, setScores] = useState<number[]>([]);
+  const [answerHistory, setAnswerHistory] = useState<
+    Array<{ isCorrect: boolean; question: string; selectedOption: string; nistPhase: string }>
+  >([]);
+  const totalQuestions = scenario.nist_phases.length;
   const [previousQuestion, setPreviousQuestion] = useState<string | null>(null);
   const [previousAnswer, setPreviousAnswer] = useState<string | null>(null);
   const [previousScore, setPreviousScore] = useState<number | null>(null);
@@ -109,6 +113,7 @@ export default function WarRoom({ scenario }: WarRoomProps) {
     },
   ]);
   const [gameOver, setGameOver] = useState(false);
+  const [sessionId, setSessionId] = useState("");
   const injectCursorRef = useRef(0);
   const feedRef = useRef<HTMLDivElement | null>(null);
 
@@ -119,6 +124,12 @@ export default function WarRoom({ scenario }: WarRoomProps) {
     })),
     [scenario.nist_phases, scores]
   );
+
+  useEffect(() => {
+    const newSessionId = crypto.randomUUID();
+    sessionStorage.setItem("war_room_session_id", newSessionId);
+    setSessionId(newSessionId);
+  }, [scenario.id]);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: "smooth" });
@@ -210,6 +221,15 @@ export default function WarRoom({ scenario }: WarRoomProps) {
       const result: AiFeedback = await response.json();
       setAiFeedback(result);
       setScores((prev) => [...prev, result.score]);
+      setAnswerHistory((prev) => [
+        ...prev,
+        {
+          isCorrect: selectedOption.correct,
+          question: currentQuestion.question,
+          selectedOption: selectedOption.text,
+          nistPhase: currentQuestion.nist_phase,
+        },
+      ]);
       setPreviousQuestion(currentQuestion.question);
       setPreviousAnswer(selectedOption.text);
       setPreviousScore(result.score);
@@ -223,7 +243,7 @@ export default function WarRoom({ scenario }: WarRoomProps) {
   };
 
   const handleNext = () => {
-    if (questionNumber < 4) {
+    if (questionNumber < totalQuestions) {
       const nextQuestionNumber = questionNumber + 1;
       setQuestionNumber(nextQuestionNumber);
       setAiFeedback(null);
@@ -232,12 +252,14 @@ export default function WarRoom({ scenario }: WarRoomProps) {
       generateQuestion(nextQuestionNumber, previousQuestion, previousAnswer, previousScore);
     } else {
       setGameOver(true);
+      const encodedAnswers = encodeURIComponent(JSON.stringify(answerHistory));
       const encodedScores = encodeURIComponent(JSON.stringify(scores));
       const encodedTitle = encodeURIComponent(scenario.title);
       const encodedPhases = encodeURIComponent(JSON.stringify(scenario.nist_phases));
       const encodedScenarioId = encodeURIComponent(scenario.id);
+      const encodedSessionId = encodeURIComponent(sessionId || sessionStorage.getItem("war_room_session_id") || "");
       router.push(
-        `/results?scores=${encodedScores}&scenarioId=${encodedScenarioId}&scenarioTitle=${encodedTitle}&nistPhases=${encodedPhases}`
+        `/results?answers=${encodedAnswers}&scores=${encodedScores}&scenarioId=${encodedScenarioId}&scenarioTitle=${encodedTitle}&nistPhases=${encodedPhases}&sessionId=${encodedSessionId}`
       );
     }
   };
@@ -293,7 +315,7 @@ export default function WarRoom({ scenario }: WarRoomProps) {
               <h1 className="mt-2 text-3xl font-semibold text-white">{scenario.title}</h1>
             </div>
             <div className="rounded-2xl bg-white/5 px-4 py-2 text-sm text-cyan-200">
-              Question {questionNumber} / 4
+              Question {questionNumber} / {totalQuestions}
             </div>
           </div>
 

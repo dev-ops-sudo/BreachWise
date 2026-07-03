@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
-  ATTACK_IDS,
   generateAndStoreQuestion,
   getStoredQuestion,
   toUiQuestion,
@@ -10,10 +9,10 @@ import {
 export async function GET(request: NextRequest) {
   const attackId = request.nextUrl.searchParams.get("attackId");
   const num = Number(request.nextUrl.searchParams.get("n") ?? "1");
-  const sessionId = request.nextUrl.searchParams.get("sessionId") || "";
+  const sessionId = request.nextUrl.searchParams.get("sessionId") ?? "";
 
-  if (!attackId || !ATTACK_IDS.includes(attackId) || !Number.isInteger(num) || num < 1 || num > 4) {
-    return NextResponse.json({ error: "Valid attackId and question number required" }, { status: 400 });
+  if (!attackId || !sessionId) {
+    return NextResponse.json({ error: "attackId and sessionId required" }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -36,13 +35,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { attackId, questionNumber, sessionId } = await request.json();
-    if (
-      typeof attackId !== "string" ||
-      !ATTACK_IDS.includes(attackId) ||
-      !Number.isInteger(questionNumber) ||
-      questionNumber < 1 ||
-      questionNumber > 4
-    ) {
+    if (!attackId || typeof questionNumber !== "number" || !sessionId) {
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
@@ -55,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const row = await generateAndStoreQuestion(user.id, attackId, questionNumber, sessionId || "");
+    const row = await generateAndStoreQuestion(user.id, attackId, questionNumber, sessionId);
     return NextResponse.json({ question: toUiQuestion(row) });
   } catch (error) {
     console.error("Generate scenario question error:", error);

@@ -49,8 +49,21 @@ export default function ResultsContent() {
     }
   }, [searchParams]);
 
+  const answers = useMemo(() => {
+    const raw = searchParams.get("answers");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as Array<{ isCorrect: boolean }>;
+    } catch {
+      return null;
+    }
+  }, [searchParams]);
   const scenarioId = searchParams.get("scenarioId") ?? "";
   const scenarioTitle = searchParams.get("scenarioTitle") ?? "";
+  const sessionId =
+    searchParams.get("sessionId") ??
+    (typeof window !== "undefined" ? sessionStorage.getItem("war_room_session_id") : null) ??
+    "";
 
   useEffect(() => {
     if (!scores || !scenarioTitle || !scenarioId) {
@@ -68,6 +81,7 @@ export default function ResultsContent() {
           body: JSON.stringify({
             scenarioTitle,
             scores,
+            answers,
             nistPhases: JSON.parse(searchParams.get("nistPhases") ?? "[]"),
           }),
         });
@@ -87,7 +101,7 @@ export default function ResultsContent() {
     };
 
     fetchReport();
-  }, [scores, scenarioTitle, scenarioId, searchParams]);
+  }, [scores, answers, scenarioTitle, scenarioId, searchParams]);
 
   useEffect(() => {
     if (!report || !scores || !scenarioId) return;
@@ -114,6 +128,7 @@ export default function ResultsContent() {
             readiness_level: report.readiness_level,
             weak_phases: report.weak_phases,
             strong_phases: report.strong_phases,
+            session_id: sessionId || null,
             completed_at: new Date().toISOString(),
           },
         ]);
@@ -131,7 +146,7 @@ export default function ResultsContent() {
     };
 
     saveResult();
-  }, [report, scores, scenarioId, scenarioTitle]);
+  }, [report, scores, answers, scenarioId, scenarioTitle, sessionId]);
 
   const downloadPDF = () => {
     if (!report) return;

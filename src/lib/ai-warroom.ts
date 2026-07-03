@@ -8,6 +8,7 @@ import {
   MENTOR_SYSTEM_PROMPT,
   SOLUTION_SYSTEM_PROMPT,
 } from "@/lib/ai-prompts";
+import { calculateOverallScore } from "@/lib/score";
 import type { WarRoomEvaluation } from "@/lib/war-room-types";
 
 interface QuestionGenerationParams {
@@ -307,11 +308,7 @@ function scoreLocally(params: AnswerEvaluationParams): EvaluationResult {
     };
   });
 
-  const totalQuestions = feedback.length;
-  const correctCount = feedback.filter((a) =>
-    a.is_correct || (a as any).isCorrect || (a as any).correct || (a as any).verdict === "Correct"
-  ).length;
-  const accuracy = totalQuestions === 0 ? 0 : Math.round((correctCount / totalQuestions) * 100);
+  const accuracy = calculateOverallScore(feedback);
 
   const avgTime = params.questions.length ? totalTime / params.questions.length : 60;
   const speedScore = Math.max(0, Math.min(100, Math.round(100 - (avgTime - 20) * 1.5)));

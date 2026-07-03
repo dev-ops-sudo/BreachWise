@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { calculateOverallScore } from "@/lib/score";
 import type { WarRoomEvaluation } from "@/lib/war-room-types";
 
 export async function POST(request: NextRequest) {
@@ -37,6 +38,8 @@ export async function POST(request: NextRequest) {
       }>;
     };
 
+    const overallScore = calculateOverallScore(answers);
+
     const { data: trainingSession, error: tsError } = await supabase
       .from("training_sessions")
       .upsert(
@@ -46,7 +49,7 @@ export async function POST(request: NextRequest) {
           progress: 100,
           current_module: "AI War Room complete",
           status: "completed",
-          score: evaluation.total_score ?? evaluation.score,
+          score: overallScore,
           last_played_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
         },
@@ -118,7 +121,7 @@ export async function POST(request: NextRequest) {
     await supabase.from("war_room_rankings").insert({
       session_id: warSession.id,
       user_id: user.id,
-      total_score: evaluation.total_score ?? evaluation.score,
+      total_score: overallScore,
       accuracy_percentage: evaluation.accuracy_percentage,
       speed_score: evaluation.speed_score ?? 0,
       overall_rank: evaluation.overall_rank,
@@ -133,7 +136,7 @@ export async function POST(request: NextRequest) {
       scenario_id: attackId,
       scenario_title: scenarioTitle,
       scores: answers.map((a) => (a.is_correct ? 10 : 3)),
-      overall_score: evaluation.total_score ?? evaluation.score,
+      overall_score: overallScore,
       readiness_level: evaluation.overall_rank,
       weak_phases: evaluation.weaknesses,
       strong_phases: evaluation.strengths,
@@ -142,6 +145,18 @@ export async function POST(request: NextRequest) {
       suitable_for: evaluation.overall_rank,
       session_id: sessionId || null,
     });
+
+    await supabase.from("user_answers").insert(
+      answers.map((a, idx) => ({
+        user_id: user.id,
+        scenario_id: attackId,
+        session_id: sessionId || null,
+        question_number: idx + 1,
+        question: a.question_text,
+        selected_option: a.selected_option ?? a.user_answer,
+        is_correct: a.is_correct,
+      }))
+    );
 
     return NextResponse.json({ success: true, sessionId: warSession.id });
   } catch (error) {

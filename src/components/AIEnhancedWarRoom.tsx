@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import { getScenarioForAttack } from "@/lib/scenarios";
 import { upsertSession } from "@/lib/training-progress";
-import type { WarRoomEvaluation } from "@/lib/war-room-types";import TimedQA from "./TimedQA";
+import type { WarRoomEvaluation } from "@/lib/war-room-types";
+import { calculateOverallScore } from "@/lib/score";
+import TimedQA from "./TimedQA";
 import AIGuidanceBox, { type AIGuidanceBoxHandle } from "./AIGuidanceBox";
 import RankingDisplay from "./RankingDisplay";
 import SolutionBox from "./SolutionBox";
@@ -94,11 +96,7 @@ export default function AIEnhancedWarRoom({
       }
     };
 
-    let sid = sessionStorage.getItem("war_room_session_id");
-    if (!sid) {
-      sid = crypto.randomUUID();
-      sessionStorage.setItem("war_room_session_id", sid);
-    }
+    let sid = sessionStorage.getItem("war_room_session_id") || "";
     setSessionId(sid);
 
     initializeSession();
@@ -262,7 +260,7 @@ export default function AIEnhancedWarRoom({
 
       return { isCorrect: checkResult.is_correct, feedback: checkResult.feedback };
     },
-    [questions, userAnswers.length, prefetchQuestion]
+    [questions, userAnswers.length, sessionId, prefetchQuestion]
   );
   const handleQuizComplete = useCallback(
     async (finalSubmission?: {
@@ -365,7 +363,11 @@ export default function AIEnhancedWarRoom({
           };
         });
 
-        evaluation.total_score = evaluation.total_score ?? evaluation.score;
+        evaluation.total_score = calculateOverallScore(
+          completedAnswers.map((a) => ({ isCorrect: a.isCorrect, is_correct: a.isCorrect }))
+        );
+        evaluation.score = evaluation.total_score;
+        evaluation.accuracy_percentage = evaluation.total_score;
 
         void upsertSession(attackId, {
           progress: 100,
@@ -422,7 +424,7 @@ export default function AIEnhancedWarRoom({
         });
       }
     },
-    [userId, questions, userAnswers, attackId, scenario?.title]
+    [userId, questions, userAnswers, attackId, scenario?.title, sessionId]
   );
   /**
    * AI guidance request handler

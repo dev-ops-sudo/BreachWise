@@ -54,7 +54,9 @@ function getMockReportResult(scenarioTitle, scores, nistPhases, readinessLevel) 
   const weak = top.slice(-2).map((item) => item.phase);
 
   return {
-    overall_score: Math.round((scores.reduce((sum, value) => sum + value, 0) / scores.length) * 10),
+    overall_score: Math.round(
+      (scores.filter((s) => s === 10).length / Math.max(scores.length, 1)) * 100
+    ),
     readiness_level: readinessLevel,
     strong_phases: strong,
     weak_phases: weak,
@@ -101,11 +103,13 @@ app.post('/api/report', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing or invalid request body fields' });
     }
 
-    const answers = scores.map((s) => ({
-      isCorrect: s === 10 || s >= 8,
-      correct: s === 10 || s >= 8,
-      verdict: (s === 10 || s >= 8) ? 'Correct' : 'Incorrect',
-    }));
+    const answers = Array.isArray(req.body.answers) && req.body.answers.length > 0
+      ? req.body.answers
+      : scores.map((s) => ({
+          isCorrect: s === 10,
+          correct: s === 10,
+          verdict: s === 10 ? 'Correct' : 'Incorrect',
+        }));
 
     const totalQuestions = answers.length;
     const correctCount = answers.filter((a) =>

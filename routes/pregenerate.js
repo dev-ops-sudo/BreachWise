@@ -134,28 +134,35 @@ router.post('/init', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ error: 'userId required' });
     }
-
-    const sid = sessionId || '';
-    const { data: existing, error: getError } = await supabase
-      .from('generated_questions')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('session_id', sid)
-      .eq('question_number', 1)
-      .limit(1);
-
-    if (getError) {
-      console.error('Supabase lookup error:', getError);
-      return res.status(500).json({ error: 'Database lookup failed' });
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ error: 'sessionId required' });
     }
 
-    if (existing && existing.length > 0) {
-      return res.json({ message: 'Already initialized' });
-    }
+    const results = await Promise.all(
+      scenarios.map(async (scenario) => {
+        try {
+          const { data: existing } = await supabase
+            .from('generated_questions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('scenario_id', scenario.id)
+            .eq('session_id', sessionId)
+            .eq('question_number', 1)
+            .limit(1);
 
-    // Questions are generated on demand by /next. The old behavior fired eight
-    // simultaneous Groq requests here, even when the user opened one scenario.
-    return res.json({ message: 'Initialized; questions will be generated on demand' });
+          if (existing && existing.length > 0) {
+            return { attackId: scenario.id, ok: true, cached: true };
+          }
+
+          await generateAndStore(userId, scenario, 1, null, null, null, sessionId);
+          return { attackId: scenario.id, ok: true, cached: false };
+        } catch {
+          return { attackId: scenario.id, ok: false };
+        }
+      })
+    );
+
+    return res.json({ success: true, sessionId, results });
   } catch (error) {
     console.error('Pregenerate init error:', error?.stack || error);
     return res.status(500).json({ error: 'Failed to initialize generation' });

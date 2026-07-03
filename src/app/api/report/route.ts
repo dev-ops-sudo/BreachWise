@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { calculateOverallScore, isCorrectScoreValue } from "@/lib/score";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
@@ -27,8 +28,12 @@ function getMockReportResult(
   const weak = ranked.slice(-2).map((item) => item.phase);
 
   return {
-    overall_score: Math.round(
-      (scores.reduce((sum, value) => sum + value, 0) / scores.length) * 10
+    overall_score: calculateOverallScore(
+      scores.map((score) => ({
+        isCorrect: isCorrectScoreValue(score),
+        correct: isCorrectScoreValue(score),
+        verdict: isCorrectScoreValue(score) ? "Correct" : "Incorrect",
+      }))
     ),
     readiness_level: readinessLevel,
     strong_phases: strong,
@@ -72,7 +77,7 @@ async function fetchGroqReport(promptText: string): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { scenarioTitle, scores, nistPhases } = await request.json();
+    const { scenarioTitle, scores, nistPhases, answers: rawAnswers } = await request.json();
 
     if (
       typeof scenarioTitle !== "string" ||
@@ -89,17 +94,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const answers = scores.map((s) => ({
-      isCorrect: s === 10 || s >= 8,
-      correct: s === 10 || s >= 8,
-      verdict: (s === 10 || s >= 8) ? "Correct" : "Incorrect",
-    }));
+    const answers = Array.isArray(rawAnswers) && rawAnswers.length > 0
+      ? rawAnswers
+      : scores.map((s: number) => ({
+          isCorrect: isCorrectScoreValue(s),
+          correct: isCorrectScoreValue(s),
+          verdict: isCorrectScoreValue(s) ? "Correct" : "Incorrect",
+        }));
 
-    const totalQuestions = answers.length;
-    const correctCount = answers.filter((a) =>
-      a.isCorrect || a.correct || a.verdict === "Correct"
-    ).length;
-    const overallScore = totalQuestions === 0 ? 0 : Math.round((correctCount / totalQuestions) * 100);
+    const overallScore = calculateOverallScore(answers);
 
     const averageScore = scores.reduce((sum, value) => sum + value, 0) / scores.length;
     const readinessLevel = getReadinessLevel(averageScore);

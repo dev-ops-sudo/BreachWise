@@ -12,67 +12,88 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: rankings, error: rankError } = await supabase
-      .from("war_room_rankings")
-      .select(
-        `
-        id,
-        total_score,
-        accuracy_percentage,
-        speed_score,
-        overall_rank,
-        ranking_analysis,
-        strengths,
-        weaknesses,
-        recommendations,
-        created_at,
-        session_id,
-        war_room_sessions (
-          id,
-          scenario_context,
-          completed_at,
-          training_session_id,
-          training_sessions (
-            attack_id,
-            score,
-            status,
-            last_played_at
-          )
-        )
-      `
-      )
+    const { data: results, error: resultsError } = await supabase
+      .from("scenario_results")
+      .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(20);
+      .order("completed_at", { ascending: false })
+      .limit(30);
 
-    if (rankError) {
-      console.error("History fetch error:", rankError);
+    if (resultsError) {
       return NextResponse.json({ error: "Failed to load history" }, { status: 500 });
     }
 
-    const sessionsWithDetails = await Promise.all(
-      (rankings ?? []).map(async (ranking) => {
-        const sessionId = ranking.session_id;
-        const { data: questions } = await supabase
-          .from("war_room_questions")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("question_number", { ascending: true });
+    const attempts = await Promise.all(
+      (results ?? []).map(async (result) => {
+        const sessionId = result.session_id as string | null;
+        const scenarioId = result.scenario_id as string;
 
-        const { data: answers } = await supabase
-          .from("war_room_answers")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("answered_at", { ascending: true });
+        let questions: Array<{
+          id: string;
+          question_number: number;
+          question_text: string;
+          correct_answer: string;
+          topic?: string;
+        }> = [];
+        let answers: Array<{
+          id: string;
+          user_answer: string;
+          selected_option?: string | null;
+          is_correct: boolean;
+          answer_mode?: string;
+        }> = [];
 
-        const attackId =
-          (ranking.war_room_sessions as any)?.training_sessions?.attack_id ?? "unknown";
+        if (sessionId) {
+          const { data: genQuestions } = await supabase
+            .from("generated_questions")
+            .select("id, question_number, question, options, nist_phase")
+            .eq("user_id", user.id)
+            .eq("scenario_id", scenarioId)
+            .eq("session_id", sessionId)
+            .order("question_number", { ascending: true });
+
+          questions = (genQuestions ?? []).map((q) => {
+            const options = Array.isArray(q.options) ? q.options : [];
+            const correct =
+              options.find((o: { correct?: boolean }) => o.correct)?.text ??
+              options[0]?.text ??
+              "";
+            return {
+              id: q.id,
+              question_number: q.question_number,
+              question_text: q.question,
+              correct_answer: correct,
+              topic: q.nist_phase,
+            };
+          });
+
+          const { data: userAnswers } = await supabase
+            .from("user_answers")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("scenario_id", scenarioId)
+            .eq("session_id", sessionId)
+            .order("question_number", { ascending: true });
+
+          answers = (userAnswers ?? []).map((a) => ({
+            id: a.id,
+            user_answer: a.selected_option || a.question,
+            selected_option: a.selected_option,
+            is_correct: a.is_correct,
+            answer_mode: "mcq",
+          }));
+        }
 
         return {
-          ...ranking,
-          attack_id: attackId,
-          questions: questions ?? [],
-          answers: answers ?? [],
+          id: result.id,
+          total_score: result.overall_score,
+          accuracy_percentage: result.overall_score,
+          overall_rank: result.readiness_level ?? "Intermediate",
+          created_at: result.completed_at,
+          attack_id: scenarioId,
+          session_id: sessionId,
+          questions,
+          answers,
         };
       })
     );
@@ -84,7 +105,7 @@ export async function GET() {
       .order("last_played_at", { ascending: false });
 
     return NextResponse.json({
-      attempts: sessionsWithDetails,
+      attempts,
       trainingSessions: trainingSessions ?? [],
     });
   } catch (error) {
