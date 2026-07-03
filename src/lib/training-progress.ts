@@ -46,7 +46,6 @@ export async function getLatestSession(): Promise<ResumeSession | null> {
     .from("training_sessions")
     .select("*")
     .eq("user_id", user.id)
-    .eq("status", "in_progress")
     .order("last_played_at", { ascending: false })
     .limit(1)
     .maybeSingle();

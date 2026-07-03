@@ -3,29 +3,73 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { getLatestSession } from "@/lib/training-progress";
 import { resumeSession as fallbackSession, type ResumeSession } from "@/lib/attacks";
 
 export default function ResumeBanner({ compact = false }: { compact?: boolean }) {
   const [session, setSession] = useState<ResumeSession | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setSession(fallbackSession);
+      setIsLoggedIn(false);
+      setLoading(false);
       return;
     }
 
-    getLatestSession()
-      .then((data) => {
-        setSession(data ?? fallbackSession);
-        setIsLoggedIn(data !== null);
-      })
-      .catch(() => setSession(fallbackSession));
+    const supabase = createClient();
+
+    const fetchSession = async (userExists: boolean) => {
+      if (!userExists) {
+        setIsLoggedIn(false);
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+      setIsLoggedIn(true);
+      try {
+        const data = await getLatestSession();
+        if (data) {
+          setSession(data);
+        } else {
+          // New user (logged in, but no previous session) -> start with 0
+          setSession({
+            attackId: "phishing",
+            attackTitle: "Spear Phishing Campaign",
+            progress: 0,
+            lastPlayed: "Not started yet",
+            module: "Module 1 — Briefing",
+          });
+        }
+      } catch (err) {
+        console.error("Error loading session in ResumeBanner:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      fetchSession(!!user);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      fetchSession(!!session?.user);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const active = session ?? fallbackSession;
+  if (loading || !isLoggedIn || !session) {
+    return null;
+  }
+
+  const active = session;
 
   if (compact) {
     return (
