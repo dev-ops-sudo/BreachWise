@@ -31,5 +31,12 @@ yarn-error.log*
 .env
 .env*.local
 
+# editor / agent tooling
+.agents/
+.cursor/
+.vscode/
+
 # typescript
 next-env.d.ts
+
+.vercel

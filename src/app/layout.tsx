@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import AntigravityBackground from "@/components/AntigravityBackground";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,8 +21,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased textured-bg min-h-screen`}>
-        {children}
+      <body className={`${inter.className} ${inter.variable} antialiased min-h-screen bg-slate-50`}>
+        <div className="fixed inset-0 z-0 overflow-hidden">
+          <AntigravityBackground />
+        </div>
+        <div className="relative z-10 min-h-screen">{children}</div>
       </body>
     </html>
   );

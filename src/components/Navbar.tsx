@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Shield } from "lucide-react";
+import NavbarActions from "@/components/NavbarActions";
 
 interface NavbarProps {
   variant?: "default" | "auth";
@@ -32,22 +33,7 @@ export default function Navbar({ variant = "default" }: NavbarProps) {
           </nav>
         ) : null}
 
-        <div className="flex items-center gap-3">
-          {variant === "default" ? (
-            <>
-              <Link href="/auth" className="btn-ghost hidden sm:inline-flex">
-                Log in
-              </Link>
-              <Link href="/auth?mode=signup" className="btn-primary text-sm !px-5 !py-2.5">
-                Get Started
-              </Link>
-            </>
-          ) : (
-            <Link href="/" className="btn-ghost">
-              ← Back to Home
-            </Link>
-          )}
-        </div>
+        <NavbarActions variant={variant} />
       </div>
     </header>
   );

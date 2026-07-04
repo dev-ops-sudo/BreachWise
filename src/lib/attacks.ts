@@ -31,16 +31,16 @@ export interface ResumeSession {
 export const attacks: Attack[] = [
   {
     id: "ransomware",
-    title: "Ransomware Outbreak",
+    title: "Ransomware on Defense Contractor Network",
     category: "Malware",
     difficulty: "Intermediate",
     duration: "45 min",
     description:
-      "A critical file server is encrypted mid-business day. Trace patient-zero, decide whether to isolate segments or keep operations running, and practice containment under executive pressure.",
+      "02:47 AM — FS-01 and FS-02 are encrypting. Shadow copies are being deleted. You are the IR Lead on a defense contractor network. Based on Colonial Pipeline, 2021.",
     objectives: [
-      "Identify initial infection vector",
-      "Contain lateral movement",
-      "Coordinate with legal on ransom decision",
+      "Activate IR plan and preserve forensic evidence",
+      "Contain lateral movement toward DC-01",
+      "Recover from offline backups in correct sequence",
     ],
     icon: "🔒",
     color: "from-red-500 to-orange-500",

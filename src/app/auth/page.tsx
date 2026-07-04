@@ -2,21 +2,117 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { GoogleIcon, ShieldSticker, LockSticker } from "@/components/Stickers";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/site-url";
 
 function AuthForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialMode = searchParams.get("mode") === "signup" ? "signup" : "login";
+  const authError = searchParams.get("error");
+  const nextPath = searchParams.get("next") ?? "/attacks";
+
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [showPassword, setShowPassword] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const authMessage = searchParams.get("message");
+  const [message, setMessage] = useState<string | null>(() => {
+    if (authError === "auth_callback_failed") {
+      return (
+        authMessage ||
+        "Google sign-in failed. Check Supabase Google provider settings and try again."
+      );
+    }
+    if (authError === "google_not_enabled") {
+      return "Google sign-in is not enabled yet. Enable the Google provider in Supabase.";
+    }
+    return null;
+  });
+
+  const supabaseConfigured = isSupabaseConfigured();
+
+  const handleGoogleSignIn = async () => {
+    if (!supabaseConfigured) {
+      setMessage("Supabase is not configured. Add your keys to .env.local first.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: getAuthCallbackUrl(nextPath),
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!supabaseConfigured) {
+      setMessage("Supabase is not configured. Add your keys to .env.local first.");
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+    const supabase = createClient();
+
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: name },
+          emailRedirectTo: getAuthCallbackUrl(nextPath),
+        },
+      });
+
+      if (error) {
+        setMessage(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setMessage("Check your email to confirm your account, then log in.");
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
+    router.push(nextPath);
+    router.refresh();
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-73px)] items-center justify-center px-6 py-12">
       <div className="grid w-full max-w-4xl items-center gap-10 lg:grid-cols-2">
-        {/* Left decorative panel */}
         <div className="hidden lg:block">
           <div className="relative">
             <ShieldSticker className="absolute -left-4 -top-4 h-20 w-20 animate-float opacity-80" />
@@ -51,7 +147,6 @@ function AuthForm() {
           </div>
         </div>
 
-        {/* Auth card */}
         <div className="glass-card rounded-3xl p-8 shadow-xl">
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-slate-900">
@@ -64,7 +159,25 @@ function AuthForm() {
             </p>
           </div>
 
-          {/* Tab toggle */}
+          {!supabaseConfigured && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Add your Supabase URL and anon key to <code>.env.local</code> to
+              enable auth. See <code>.env.example</code> for the format.
+            </div>
+          )}
+
+          {message && (
+            <div
+              className={`mb-4 rounded-xl px-4 py-3 text-sm ${
+                message.includes("Check your email")
+                  ? "border border-green-200 bg-green-50 text-green-800"
+                  : "border border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {message}
+            </div>
+          )}
+
           <div className="mb-6 flex rounded-xl bg-slate-100 p-1">
             <button
               type="button"
@@ -90,10 +203,11 @@ function AuthForm() {
             </button>
           </div>
 
-          {/* Google sign-in */}
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-[0.99]"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-[0.99] disabled:opacity-60"
           >
             <GoogleIcon className="h-5 w-5" />
             Continue with Google
@@ -105,13 +219,7 @@ function AuthForm() {
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              window.location.href = "/attacks";
-            }}
-          >
+          <form className="space-y-4" onSubmit={handleSubmit}>
             {mode === "signup" && (
               <div>
                 <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -123,7 +231,10 @@ function AuthForm() {
                     id="name"
                     type="text"
                     placeholder="Alex Morgan"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className="input-field pl-10"
+                    required
                   />
                 </div>
               </div>
@@ -139,6 +250,8 @@ function AuthForm() {
                   id="email"
                   type="email"
                   placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="input-field pl-10"
                   required
                 />
@@ -155,8 +268,11 @@ function AuthForm() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="input-field pl-10 pr-10"
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -173,19 +289,12 @@ function AuthForm() {
               </div>
             </div>
 
-            {mode === "login" && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="text-xs font-medium text-brand-600 hover:text-brand-700"
-                >
-                  Forgot password?
-                </button>
-              </div>
-            )}
-
-            <button type="submit" className="btn-primary w-full">
-              {mode === "login" ? "Log In" : "Create Account"}
+            <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-60">
+              {loading
+                ? "Please wait..."
+                : mode === "login"
+                  ? "Log In"
+                  : "Create Account"}
             </button>
           </form>
 

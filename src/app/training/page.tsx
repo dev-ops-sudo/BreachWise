@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -13,16 +13,24 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { attacks, resumeSession } from "@/lib/attacks";
+import { getLatestSession, upsertSession } from "@/lib/training-progress";
 import { TerminalSticker } from "@/components/Stickers";
+import type { ResumeSession } from "@/lib/attacks";
 
 function TrainingContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const resumeId = searchParams.get("resume");
   const mode = searchParams.get("mode");
   const scenariosParam = searchParams.get("scenarios");
 
+  const [sessionData, setSessionData] = useState<ResumeSession | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
   const isResume = Boolean(resumeId);
   const isFullCurriculum = mode === "all";
+  const activeSession = sessionData ?? resumeSession;
 
   const selectedAttacks = useMemo(() => {
     if (isResume && resumeId) {
@@ -35,6 +43,35 @@ function TrainingContent() {
     }
     return [];
   }, [isResume, resumeId, isFullCurriculum, scenariosParam]);
+
+  useEffect(() => {
+    if (isResume && resumeId) {
+      getLatestSession().then(setSessionData).catch(() => setSessionData(null));
+    }
+  }, [isResume, resumeId]);
+
+  const handleStartTraining = async () => {
+    const attackId = selectedAttacks[0]?.id;
+    if (!attackId) return;
+
+    setStarting(true);
+    setStartError(null);
+
+    try {
+      await upsertSession(attackId, {
+        progress: isResume ? activeSession.progress : 5,
+        current_module: isResume
+          ? activeSession.module
+          : "Module 1 — Briefing",
+        status: "in_progress",
+      });
+    } catch (err) {
+      console.warn("Could not sync session to Supabase:", err);
+    }
+
+    router.push(`/training/simulation?attack=${attackId}`);
+    setStarting(false);
+  };
 
   const totalDuration = selectedAttacks.reduce((sum, a) => {
     const mins = parseInt(a.duration, 10);
@@ -95,7 +132,7 @@ function TrainingContent() {
 
           <p className="mt-3 text-slate-600">
             {isResume
-              ? `Pick up at ${resumeSession.module}. Your previous decisions and score are saved.`
+              ? `Pick up at ${activeSession.module}. Your previous decisions and score are saved.`
               : "Review your lineup below, then enter the war room. Live incident injects will begin once you start."}
           </p>
 
@@ -104,17 +141,17 @@ function TrainingContent() {
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-brand-700">Progress</span>
                 <span className="font-bold text-brand-800">
-                  {resumeSession.progress}%
+                  {activeSession.progress}%
                 </span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-brand-100">
                 <div
                   className="h-full rounded-full bg-brand-600 transition-all"
-                  style={{ width: `${resumeSession.progress}%` }}
+                  style={{ width: `${activeSession.progress}%` }}
                 />
               </div>
               <p className="mt-2 text-xs text-brand-600">
-                Last played {resumeSession.lastPlayed}
+                Last played {activeSession.lastPlayed}
               </p>
             </div>
           )}
@@ -150,14 +187,24 @@ function TrainingContent() {
             </span>
           </div>
 
+          {startError && (
+            <p className="mt-4 text-sm text-red-600">{startError}</p>
+          )}
+
           <div className="mt-8 flex flex-wrap gap-4">
-            <Link
-              href={`/training/simulation?attack=${selectedAttacks[0]?.id}`}
-              className="btn-primary flex-1 sm:flex-none inline-flex items-center justify-center gap-2"
+            <button
+              type="button"
+              className="btn-primary flex-1 sm:flex-none disabled:opacity-60"
+              disabled={starting}
+              onClick={handleStartTraining}
             >
               <Play className="h-4 w-4" fill="currentColor" />
-              {isResume ? "Resume Training" : "Start Training"}
-            </Link>
+              {starting
+                ? "Saving..."
+                : isResume
+                  ? "Resume Training"
+                  : "Start Training"}
+            </button>
             {!isResume && (
               <Link href="/attacks" className="btn-secondary">
                 Change Selection
