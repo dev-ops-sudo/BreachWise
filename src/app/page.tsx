@@ -64,7 +64,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6 pb-20 pt-16 md:pt-24">
             <div className="grid items-center gap-12 lg:grid-cols-2">
               <div>
-                <div className="animate-fade-in-up mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200/80 bg-white/60 px-4 py-1.5 text-sm font-medium text-brand-700 backdrop-blur-sm">
+                <div className="hero-pill animate-fade-in-up mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200/80 bg-white/60 px-4 py-1.5 text-sm font-medium text-brand-700 backdrop-blur-sm">
                   <Zap className="h-4 w-4" />
                   AI-Powered Incident Response Training
                 </div>
@@ -109,27 +109,27 @@ export default function HomePage() {
                     </span>
                   </div>
                   <div className="space-y-2 font-mono text-xs">
-                    <p className="text-red-500">
+                    <p className="text-red-500 font-bold">
                       [ALERT] Ransomware detected on FS-PROD-01
                     </p>
-                    <p className="text-amber-600">
+                    <p className="text-amber-500 dark:text-amber-400">
                       [INJECT] CFO requesting status update...
                     </p>
-                    <p className="text-brand-600">
+                    <p className="text-brand-600 dark:text-cyan-400">
                       {">"} Your move: isolate segment or maintain uptime?
                     </p>
-                    <p className="text-slate-400 animate-pulse-soft">
+                    <p className="text-slate-400 dark:text-slate-500 animate-pulse-soft">
                       _ awaiting decision...
                     </p>
                   </div>
-                  <div className="mt-4 flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 backdrop-blur-sm">
+                  <div className="hero-stats-badge mt-4 flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 border border-transparent backdrop-blur-sm">
                     <div className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-brand-600" />
-                      <span className="text-sm font-semibold text-brand-700">
+                      <Trophy className="h-4 w-4 text-brand-600 dark:text-cyan-400" />
+                      <span className="text-sm font-semibold text-brand-700 dark:text-cyan-300">
                         Rank #12
                       </span>
                     </div>
-                    <span className="text-xs text-brand-600">Score: 847 pts</span>
+                    <span className="text-xs text-brand-600 dark:text-cyan-400 font-semibold font-mono">Score: 847 pts</span>
                   </div>
                 </div>
               </div>
@@ -153,7 +153,7 @@ export default function HomePage() {
         </section>
 
         {/* Stats strip */}
-        <section className="border-y border-slate-200/40 bg-white/40 backdrop-blur-sm">
+        <section className="border-y border-slate-200/20 dark:border-cyan-500/10 glass-section">
           <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-10 md:grid-cols-4">
             {[
               { value: "8+", label: "Attack Scenarios" },
@@ -207,7 +207,7 @@ export default function HomePage() {
         {/* How it works */}
         <section
           id="how-it-works"
-          className="border-t border-slate-200/40 bg-white/30 py-20 backdrop-blur-sm"
+          className="border-t border-slate-200/20 dark:border-cyan-500/10 glass-section py-20"
         >
           <div className="mx-auto max-w-6xl px-6">
             <ScrollReveal>
