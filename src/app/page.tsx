@@ -14,6 +14,7 @@ import FloatingCyberBot from "@/components/FloatingCyberBot";
 import Footer from "@/components/Footer";
 import ResumeBanner from "@/components/ResumeBanner";
 import ScrollReveal from "@/components/ScrollReveal";
+import ScrollHero from "@/components/ScrollHero";
 import {
   LockSticker,
   RankSticker,
@@ -57,85 +58,10 @@ const steps = [
 export default function HomePage() {
   return (
     <>
-      <Navbar />
+      <Navbar isHomepage={true} />
       <main>
-        {/* Hero */}
-        <section className="relative overflow-hidden">
-          <div className="mx-auto max-w-6xl px-6 pb-20 pt-16 md:pt-24">
-            <div className="grid items-center gap-12 lg:grid-cols-2">
-              <div>
-                <div className="hero-pill animate-fade-in-up mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200/80 bg-white/60 px-4 py-1.5 text-sm font-medium text-brand-700 backdrop-blur-sm">
-                  <Zap className="h-4 w-4" />
-                  AI-Powered Incident Response Training
-                </div>
-                <h1 className="animate-fade-in-up stagger-1 text-4xl font-extrabold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-                  Train for the breach{" "}
-                  <span className="shimmer-text">before it happens</span>
-                </h1>
-                <p className="animate-fade-in-up stagger-2 mt-6 max-w-lg text-lg leading-relaxed text-slate-600">
-                  BreachWise puts you inside real cyber attack scenarios — ransomware,
-                  phishing, zero-days, and more. Make the calls, get ranked, and build
-                  muscle memory for when it counts.
-                </p>
-                <div className="animate-fade-in-up stagger-3 mt-8 flex flex-wrap items-center gap-4">
-                  <Link href="/attacks" className="btn-primary hover:-translate-y-0.5">
-                    Browse Scenarios
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link href="/auth?mode=signup" className="btn-secondary hover:-translate-y-0.5">
-                    Create Free Account
-                  </Link>
-                </div>
-
-                <div className="animate-fade-in-up stagger-4">
-                  <ResumeBanner />
-                </div>
-              </div>
-
-              {/* Hero stickers */}
-              <div className="relative hidden h-[420px] lg:block">
-                <ShieldSticker className="animate-float absolute left-8 top-4 h-28 w-28 drop-shadow-lg" />
-                <TerminalSticker className="animate-float-delay absolute right-4 top-16 h-32 w-32 drop-shadow-lg" />
-                <RankSticker className="animate-float-slow absolute bottom-20 left-16 h-24 w-24 drop-shadow-lg" />
-                <LockSticker className="animate-float absolute bottom-8 right-12 h-20 w-20 drop-shadow-lg" />
-
-                <div className="animate-scale-in stagger-3 absolute left-1/2 top-1/2 w-72 -translate-x-1/2 -translate-y-1/2 glass-card animate-hero-glow rounded-3xl p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <div className="h-2.5 w-2.5 rounded-full bg-red-400" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-green-400" />
-                    <span className="ml-2 text-xs font-mono text-slate-400">
-                      breachwise — war room
-                    </span>
-                  </div>
-                  <div className="space-y-2 font-mono text-xs">
-                    <p className="text-red-500 font-bold">
-                      [ALERT] Ransomware detected on FS-PROD-01
-                    </p>
-                    <p className="text-amber-500 dark:text-amber-400">
-                      [INJECT] CFO requesting status update...
-                    </p>
-                    <p className="text-brand-600 dark:text-cyan-400">
-                      {">"} Your move: isolate segment or maintain uptime?
-                    </p>
-                    <p className="text-slate-400 dark:text-slate-500 animate-pulse-soft">
-                      _ awaiting decision...
-                    </p>
-                  </div>
-                  <div className="hero-stats-badge mt-4 flex items-center justify-between rounded-xl bg-brand-50/80 px-4 py-3 border border-transparent backdrop-blur-sm">
-                    <div className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-brand-600 dark:text-cyan-400" />
-                      <span className="text-sm font-semibold text-brand-700 dark:text-cyan-300">
-                        Rank #12
-                      </span>
-                    </div>
-                    <span className="text-xs text-brand-600 dark:text-cyan-400 font-semibold font-mono">Score: 847 pts</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* Scroll-Based Hero */}
+        <ScrollHero />
 
         {/* Live ticker */}
         <section className="overflow-hidden border-b border-slate-200/40 bg-slate-950 py-3">
