@@ -531,3 +531,8 @@ a, button, input {
 .dark .hero-stats-badge svg {
   color: #22d3ee !important;
 }
+
+/* Global hover fixes for Tailwind classes in dark mode */
+.dark .hover\:bg-slate-50:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
