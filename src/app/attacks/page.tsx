@@ -15,7 +15,6 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AttackCard from "@/components/AttackCard";
 import ResumeBanner from "@/components/ResumeBanner";
-import NistDashboard from "@/components/NistDashboard";
 import { createClient } from "@/lib/supabase/client";
 import {
   attacks,
@@ -140,8 +139,6 @@ export default function AttacksPage() {
         </div>
 
         <ResumeBanner compact />
-
-        <NistDashboard />
 
         {/* Filters & search */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
