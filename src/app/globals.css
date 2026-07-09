@@ -458,8 +458,8 @@ header {
 }
 
 .dark header {
-  background: rgba(3, 7, 18, 0.45) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(11, 22, 45, 0.45) !important;
+  border-color: rgba(34, 211, 238, 0.1) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
 }
