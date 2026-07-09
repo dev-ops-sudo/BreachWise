@@ -449,40 +449,45 @@ body {
   box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15) !important;
 }
 
-/* Header styling: colorless translucent glass in light mode, dark translucent glass in dark mode */
+/* Header styling: deep navy translucent glass matching the dark bluish background of the page */
 header {
-  background: rgba(255, 255, 255, 0.45) !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
+  background: rgba(11, 22, 45, 0.5) !important;
+  border-color: rgba(34, 211, 238, 0.15) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
 }
 
 .dark header {
-  background: rgba(11, 22, 45, 0.45) !important;
-  border-color: rgba(34, 211, 238, 0.1) !important;
+  background: rgba(11, 22, 45, 0.5) !important;
+  border-color: rgba(34, 211, 238, 0.15) !important;
   backdrop-filter: blur(20px) !important;
   -webkit-backdrop-filter: blur(20px) !important;
 }
 
-.dark header .text-slate-900 {
+header .text-slate-900 {
   color: #ffffff !important;
 }
 
-.dark header .text-slate-600 {
+header .text-slate-650,
+header .text-slate-600 {
   color: #cbd5e1 !important;
 }
 
-.dark header .text-brand-600 {
+header .text-brand-600 {
   color: #22d3ee !important;
 }
 
-.dark header .btn-ghost {
+header .btn-ghost {
   color: #cbd5e1 !important;
 }
 
-.dark header .btn-ghost:hover {
+header .btn-ghost:hover {
   color: #22d3ee !important;
   background-color: rgba(34, 211, 238, 0.08) !important;
+}
+
+header .text-slate-500 {
+  color: #94a3b8 !important;
 }
 
 /* Footer styling mapped to theme variables */
